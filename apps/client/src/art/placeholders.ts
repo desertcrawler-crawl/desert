@@ -115,6 +115,23 @@ export function buildRock(seed: number): THREE.Object3D {
   return g;
 }
 
+/** A crumbling ruin wall block, 1 m long, 1 m thick and 1 m tall at scale 1; scaled per wall. */
+export function buildWall(seed: number): THREE.Object3D {
+  const geo = new THREE.BoxGeometry(1, 1, 1, 3, 2, 1);
+  const pos = geo.getAttribute("position");
+  for (let i = 0; i < pos.count; i++) {
+    // Ragged top edge; sides stay straight so the wall matches its collision box.
+    if (pos.getY(i) > 0.49) pos.setY(i, 0.5 - 0.18 * Math.abs(Math.sin(seed * 5.3 + pos.getX(i) * 9.1)));
+  }
+  geo.translate(0, 0.5, 0);
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, flat(0xc08a5a));
+  mesh.receiveShadow = true;
+  const g = new THREE.Group();
+  g.add(mesh);
+  return g;
+}
+
 /** A small stone well with dark water, about 1.6 m across. */
 export function buildWell(): THREE.Object3D {
   const g = new THREE.Group();

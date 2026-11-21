@@ -3,12 +3,15 @@ import {
   buildRouteTable,
   buildShadeGrid,
   GREYBOX,
-  greyboxRoutes,
+  routesFor,
+  DESERT,
+  insideEllipse,
+  type MapDef,
   routeIsFair,
   Session,
   TUNING,
-  type GreyboxMap,
 } from "../src/index.ts";
+import { testMap } from "./helpers.ts";
 
 const dt = 1 / TUNING.tickHz;
 function run(s: Session, seconds: number) {
@@ -19,14 +22,7 @@ function seeded(seed = 1) {
   return () => ((v = (v * 16807) % 2147483647) / 2147483647);
 }
 
-const OPEN: GreyboxMap = {
-  halfSize: 50,
-  rocks: [],
-  spawns: [{ x: -30, z: -30 }],
-  wellSites: [{ x: 30, z: 30 }],
-  scorpions: [{ x: 0, z: 40 }],
-  boundaryBand: 5,
-};
+const OPEN = testMap({ spawns: [{ x: -30, z: -30 }], wellSites: [{ x: 30, z: 30 }], scorpions: [{ x: 0, z: 48 }] });
 const open = () => new Session({ map: OPEN, shade: buildShadeGrid(OPEN), random: seeded() });
 
 describe("walking", () => {
@@ -158,7 +154,7 @@ describe("scorpions", () => {
     p.z = sc.z - 20; // step away so the returning scorpion has nobody to sting
     run(s, 5.1);
     expect(s.isScorpionPresent(sc)).toBe(true);
-    expect([sc.x, sc.z]).toEqual([0, 40]);
+    expect([sc.x, sc.z]).toEqual([0, 48]);
   });
 
   it("a sting that drops a player below 10% starts the full dying period instead of killing", () => {
@@ -185,48 +181,45 @@ describe("scorpions", () => {
     expect(s.isScorpionPresent(sc)).toBe(true);
   });
 
-  it("greybox wells and spawns stay out of the scorpion boundary band", () => {
-    const lim = GREYBOX.halfSize - GREYBOX.boundaryBand;
-    for (const p of [...GREYBOX.wellSites, ...GREYBOX.spawns]) {
-      expect(Math.abs(p.x)).toBeLessThanOrEqual(lim);
-      expect(Math.abs(p.z)).toBeLessThanOrEqual(lim);
-    }
-    for (const sc of GREYBOX.scorpions) {
-      expect(Math.max(Math.abs(sc.x), Math.abs(sc.z))).toBeGreaterThan(lim);
-    }
-  });
+  for (const map of [GREYBOX, DESERT] as MapDef[]) {
+    it(`${map.name}: wells and spawns stay out of the scorpion boundary band`, () => {
+      for (const p of [...map.wellSites, ...map.spawns]) expect(insideEllipse(map.interior, p.x, p.z)).toBe(true);
+      for (const sc of map.scorpions) {
+        expect(insideEllipse(map.interior, sc.x, sc.z)).toBe(false);
+        expect(insideEllipse(map.boundary, sc.x, sc.z)).toBe(true);
+      }
+    });
+  }
 });
 
 describe("fair first spawns", () => {
   it("route costs follow real paths: going around a rock costs more than the straight line", () => {
-    const wall: GreyboxMap = {
-      halfSize: 50,
+    const wall = testMap({
       rocks: [{ id: "r", x: 0, z: 0, radius: 8, height: 1 }],
       spawns: [{ x: -15, z: 0 }],
       wellSites: [{ x: 15, z: 0 }],
-      scorpions: [],
-      boundaryBand: 5,
-    };
+    });
     const table = buildRouteTable(wall, buildShadeGrid(wall));
     const straight = 30 / TUNING.movement.crawlSpeed;
     expect(table[0]![0]!.seconds).toBeGreaterThan(straight * 1.1);
   });
 
-  it("every greybox spawn has at least one well site meeting the first-water target", () => {
-    const table = greyboxRoutes();
-    table.forEach((row) => {
-      expect(row.some((r) => routeIsFair(r, TUNING.health.firstEntry))).toBe(true);
+  for (const map of [GREYBOX, DESERT] as MapDef[]) {
+    it(`${map.name}: every spawn has at least one well site meeting the first-water target`, () => {
+      routesFor(map).forEach((row) => {
+        expect(row.some((r) => routeIsFair(r, TUNING.health.firstEntry))).toBe(true);
+      });
     });
-  });
+  }
 
   it("a new player always gets a fair route to an active public well", () => {
     for (let seed = 1; seed < 15; seed++) {
       const s = new Session({ random: seeded(seed) });
       for (let i = 0; i < 8; i++) {
         const p = s.join(`p${i}`, `p${i}`);
-        const spawn = GREYBOX.spawns.findIndex((sp) => sp.x === p.x && sp.z === p.z);
+        const spawn = DESERT.spawns.findIndex((sp) => sp.x === p.x && sp.z === p.z);
         if (spawn < 0) continue; // offset spawn when all are occupied
-        const ok = [...s.wells.values()].some((w) => routeIsFair(greyboxRoutes()[spawn]![w.site]!, p.health));
+        const ok = [...s.wells.values()].some((w) => routeIsFair(routesFor(DESERT)[spawn]![w.site]!, p.health));
         expect(ok).toBe(true);
       }
     }
@@ -252,8 +245,9 @@ describe("snapshots", () => {
 
 describe("a busy session", () => {
   it("30 wandering players for 5 minutes keep every invariant", () => {
+    // The small greybox map, so random wandering actually finds wells.
     const rnd = seeded(11);
-    const s = new Session({ random: rnd });
+    const s = new Session({ map: GREYBOX, random: rnd });
     for (let i = 0; i < 30; i++) s.join(`p${i}`, `p${i}`);
     let drinks = 0;
     const consumed = new Set<string>();
@@ -276,8 +270,7 @@ describe("a busy session", () => {
       for (const p of s.players.values()) {
         expect(p.health).toBeGreaterThanOrEqual(0);
         expect(p.health).toBeLessThanOrEqual(100);
-        expect(Math.abs(p.x)).toBeLessThanOrEqual(GREYBOX.halfSize);
-        expect(Math.abs(p.z)).toBeLessThanOrEqual(GREYBOX.halfSize);
+        expect(insideEllipse({ rx: GREYBOX.boundary.rx + 1e-6, rz: GREYBOX.boundary.rz + 1e-6 }, p.x, p.z)).toBe(true);
       }
     }
     expect(drinks).toBeGreaterThan(0);

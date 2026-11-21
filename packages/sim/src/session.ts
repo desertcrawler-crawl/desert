@@ -1,7 +1,8 @@
-import { GREYBOX, type GreyboxMap, type Site } from "./greybox.ts";
+import { insideEllipse, type MapDef, type Site } from "./map.ts";
 import { IDLE_INPUT, sanitizeInput, stepBody, type MoveInput } from "./movement.ts";
-import { greyboxRoutes, routeIsFair, type RouteTable } from "./routes.ts";
-import { buildShadeGrid, greyboxShade, shadeAt, type ShadeGrid } from "./shade.ts";
+import { routeIsFair, routesFor, type RouteTable } from "./routes.ts";
+import { shadeAt, shadeFor, type ShadeGrid } from "./shade.ts";
+import { WORLD } from "./world.ts";
 import { TUNING } from "./tuning.ts";
 
 /**
@@ -67,7 +68,7 @@ export type SessionEvent =
   | { type: "sting"; scorpionId: string; playerId: string };
 
 export interface SessionOptions {
-  map?: GreyboxMap;
+  map?: MapDef;
   shade?: ShadeGrid;
   routes?: RouteTable;
   /** Random source in [0, 1). Inject a seeded one in tests. */
@@ -100,7 +101,7 @@ export class Session {
   readonly markers = new Map<string, SimMarker>();
   readonly scorpions = new Map<string, SimScorpion>();
 
-  private readonly map: GreyboxMap;
+  private readonly map: MapDef;
   private readonly shade: ShadeGrid;
   private readonly routes: RouteTable;
   private readonly random: () => number;
@@ -111,9 +112,9 @@ export class Session {
   private events: SessionEvent[] = [];
 
   constructor(opts: SessionOptions = {}) {
-    this.map = opts.map ?? GREYBOX;
-    this.shade = opts.shade ?? (opts.map ? greyboxShadeFor(opts.map) : greyboxShade());
-    this.routes = opts.routes ?? (opts.map ? [] : greyboxRoutes());
+    this.map = opts.map ?? WORLD;
+    this.shade = opts.shade ?? shadeFor(this.map);
+    this.routes = opts.routes ?? routesFor(this.map);
     this.random = opts.random ?? Math.random;
     this.firstEntryHealth = opts.firstEntryHealth ?? TUNING.health.firstEntry;
     this.map.scorpions.forEach((s, i) => this.scorpions.set(`s${i}`, { id: `s${i}`, x: s.x, z: s.z, presentAt: 0 }));
@@ -448,8 +449,7 @@ export class Session {
   }
 
   private inBoundaryBand(s: Site): boolean {
-    const lim = this.map.halfSize - this.map.boundaryBand;
-    return Math.abs(s.x) > lim || Math.abs(s.z) > lim;
+    return !insideEllipse(this.map.interior, s.x, s.z);
   }
 
   /**
@@ -494,14 +494,4 @@ export class Session {
     const rough = { x: s.x + (this.random() - 0.5) * 6, z: s.z + (this.random() - 0.5) * 6, heading: 0 };
     return stepBody(rough, IDLE_INPUT, 0, this.map); // pushes it out of any rock
   }
-}
-
-const shadeCache = new WeakMap<GreyboxMap, ShadeGrid>();
-function greyboxShadeFor(map: GreyboxMap): ShadeGrid {
-  let g = shadeCache.get(map);
-  if (!g) {
-    g = buildShadeGrid(map);
-    shadeCache.set(map, g);
-  }
-  return g;
 }

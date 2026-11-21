@@ -52,6 +52,11 @@ export const ART_SLOTS = {
     clips: [],
     note: "Generic desert rock, about 2 m across and 2 m tall. Scaled per rock in the map.",
   },
+  wall: {
+    file: "ruin_wall.glb",
+    clips: [],
+    note: "Ruin wall block, 1 m long (along X), 1 m thick and 1 m tall. Stretched per wall in the map, so keep it a simple block shape with worn edges.",
+  },
 } as const satisfies Record<string, ArtSlot>;
 
 export type ArtSlotName = keyof typeof ART_SLOTS;

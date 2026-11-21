@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { BODY_RADIUS, GREYBOX, sanitizeInput, stepBody, TUNING, terrainHeight, wrapAngle } from "../src/index.ts";
+import { BODY_RADIUS, GREYBOX, sanitizeInput, stepBody, TUNING, wrapAngle } from "../src/index.ts";
 
 const dt = 1 / TUNING.tickHz;
 
 describe("stepBody", () => {
   it("crawls north at crawl speed when W is held at heading 0", () => {
     let b = { x: 0, z: 60, heading: 0 };
-    for (let i = 0; i < TUNING.tickHz * 10; i++) b = stepBody(b, { forward: 1, turn: 0 }, dt);
+    for (let i = 0; i < TUNING.tickHz * 10; i++) b = stepBody(b, { forward: 1, turn: 0 }, dt, GREYBOX);
     expect(b.x).toBeCloseTo(0, 6);
     expect(60 - b.z).toBeCloseTo(TUNING.movement.crawlSpeed * 10, 6);
   });
@@ -26,14 +26,14 @@ describe("stepBody", () => {
   it("cannot pass through a rock", () => {
     const rock = GREYBOX.rocks[0]!;
     let b = { x: rock.x, z: rock.z + rock.radius + 5, heading: 0 }; // south of rock, facing north
-    for (let i = 0; i < TUNING.tickHz * 60; i++) b = stepBody(b, { forward: 1, turn: 0 }, dt);
+    for (let i = 0; i < TUNING.tickHz * 60; i++) b = stepBody(b, { forward: 1, turn: 0 }, dt, GREYBOX);
     expect(Math.hypot(b.x - rock.x, b.z - rock.z)).toBeGreaterThanOrEqual(rock.radius + BODY_RADIUS - 1e-9);
   });
 
   it("stays inside the greybox edge", () => {
-    let b = { x: 0, z: -GREYBOX.halfSize + 0.1, heading: 0 };
-    for (let i = 0; i < 100; i++) b = stepBody(b, { forward: 1, turn: 0 }, dt);
-    expect(b.z).toBeGreaterThanOrEqual(-GREYBOX.halfSize);
+    let b = { x: 0, z: -GREYBOX.boundary.rz + 0.1, heading: 0 };
+    for (let i = 0; i < 100; i++) b = stepBody(b, { forward: 1, turn: 0 }, dt, GREYBOX);
+    expect(b.z).toBeGreaterThanOrEqual(-GREYBOX.boundary.rz);
   });
 });
 
@@ -49,7 +49,7 @@ describe("terrain", () => {
   it("stays gentle: no point higher or lower than 2 m", () => {
     for (let x = -100; x <= 100; x += 2.5) {
       for (let z = -100; z <= 100; z += 2.5) {
-        expect(Math.abs(terrainHeight(x, z))).toBeLessThan(2);
+        expect(Math.abs(GREYBOX.height(x, z))).toBeLessThan(2);
       }
     }
   });

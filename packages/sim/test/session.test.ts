@@ -7,8 +7,8 @@ import {
   shadeAt,
   SUN,
   TUNING,
-  type GreyboxMap,
 } from "../src/index.ts";
+import { testMap } from "./helpers.ts";
 
 const dt = 1 / TUNING.tickHz;
 const H = TUNING.health;
@@ -25,14 +25,11 @@ function run(session: Session, seconds: number) {
 }
 
 /** An empty map with one rock, for precise shade and well tests. */
-const OPEN: GreyboxMap = {
-  halfSize: 50,
+const OPEN = testMap({
   rocks: [{ id: "r", x: 0, z: 0, radius: 3, height: 4 }],
   spawns: [{ x: -30, z: -30 }, { x: -20, z: -30 }],
   wellSites: [{ x: 30, z: 30 }],
-  scorpions: [],
-  boundaryBand: 5,
-};
+});
 
 function openSession() {
   return new Session({ map: OPEN, shade: buildShadeGrid(OPEN), random: seeded() });
@@ -59,8 +56,8 @@ describe("shade", () => {
     let checked = 0;
     for (let x = -12; x <= 12; x += 1.3) {
       for (let z = -12; z <= 12; z += 1.1) {
-        const cx = Math.floor((x - grid.origin) / grid.cellSize) * grid.cellSize + grid.origin + grid.cellSize / 2;
-        const cz = Math.floor((z - grid.origin) / grid.cellSize) * grid.cellSize + grid.origin + grid.cellSize / 2;
+        const cx = Math.floor((x - grid.originX) / grid.cellSize) * grid.cellSize + grid.originX + grid.cellSize / 2;
+        const cz = Math.floor((z - grid.originZ) / grid.cellSize) * grid.cellSize + grid.originZ + grid.cellSize / 2;
         expect(shadeAt(grid, x, z)).toBe(isShadedExact(cx, cz, OPEN));
         checked++;
       }
