@@ -147,6 +147,16 @@ export class Session {
     this.players.delete(id);
   }
 
+  /**
+   * Put a saved character back into the world under a new connection id, exactly
+   * as it was (position, health, dying or dead). Used after a server restart.
+   */
+  adopt(id: string, saved: SimPlayer): SimPlayer {
+    const p: SimPlayer = { ...structuredClone(saved), id, input: { ...IDLE_INPUT } };
+    this.players.set(id, p);
+    return p;
+  }
+
   setInput(id: string, raw: unknown): void {
     const p = this.players.get(id);
     if (p) p.input = sanitizeInput(raw);
