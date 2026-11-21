@@ -47,7 +47,12 @@ export class FollowCamera {
     this.camera.updateProjectionMatrix();
   }
 
-  update(dt: number, target: THREE.Vector3, heading: number): void {
+  private bobTime = 0;
+  private bobAmount = 0;
+  private readonly lookAt = new THREE.Vector3();
+
+  /** speed (m/s) adds a slight, tired sway; upright says whether the character is walking. */
+  update(dt: number, target: THREE.Vector3, heading: number, speed = 0, upright = false): void {
     if (!this.dragging) this.yawOffset *= Math.exp(-dt * 1.5); // drift back behind the character
     const yaw = heading + this.yawOffset;
     this.yaw = yaw;
@@ -66,6 +71,16 @@ export class FollowCamera {
     }
     this.smoothed.lerp(desired, 1 - Math.exp(-dt * 6));
     this.camera.position.copy(this.smoothed);
-    this.camera.lookAt(target.x, target.y + 0.5, target.z);
+    // Look target eases too, so turns feel weighty rather than snapped.
+    const want = new THREE.Vector3(target.x, target.y + 0.5, target.z);
+    if (this.lookAt.lengthSq() === 0) this.lookAt.copy(want);
+    this.lookAt.lerp(want, 1 - Math.exp(-dt * 9));
+    // A slow, weary sway that grows with speed.
+    this.bobAmount += (Math.min(speed / 1.2, 1) - this.bobAmount) * (1 - Math.exp(-dt * 3));
+    this.bobTime += dt * (upright ? 4.2 : 2.6) * (0.4 + this.bobAmount);
+    const bob = this.bobAmount * (upright ? 0.05 : 0.035);
+    this.camera.position.y += Math.sin(this.bobTime * 2) * bob;
+    this.camera.lookAt(this.lookAt);
+    this.camera.rotateZ(Math.sin(this.bobTime) * bob * 0.25);
   }
 }

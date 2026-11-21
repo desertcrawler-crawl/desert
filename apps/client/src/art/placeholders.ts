@@ -94,20 +94,52 @@ export function poseCrawler(rig: CrawlerRig, phase: number, breath: number, upri
   rig.legR.rotation.x = (1 - u) * (-0.9 + 0.25 * s) + u * (-tilt - 0.25 * s);
 }
 
+/** Sandstone strata (sRGB), bottom to top. Repeats up tall rocks. */
+const STRATA = [0xc9845a, 0xdc9e6e, 0xefc18f, 0xd08c60, 0xb8704c, 0xe3a878, 0xcd8a5f].map((c) => new THREE.Color(c));
+
+/**
+ * Colours each triangle of a non-indexed geometry by the height of its centre,
+ * giving the crisp horizontal bands of layered desert sandstone.
+ */
+function paintStrata(geo: THREE.BufferGeometry, seed: number, bandHeight: number, scaleY: number): void {
+  const pos = geo.getAttribute("position");
+  const colors = new Float32Array(pos.count * 3);
+  const c = new THREE.Color();
+  for (let i = 0; i < pos.count; i += 3) {
+    const y = ((pos.getY(i) + pos.getY(i + 1) + pos.getY(i + 2)) / 3) * scaleY;
+    const wobble = 0.12 * Math.sin(seed * 7.1 + pos.getX(i) * 3.3 + pos.getZ(i) * 2.1);
+    const band = Math.floor((y + wobble + seed * 0.37) / bandHeight);
+    c.copy(STRATA[((band % STRATA.length) + STRATA.length) % STRATA.length]!);
+    // Slight per-face variation keeps it hand-made rather than striped.
+    c.offsetHSL(0, 0, 0.03 * Math.sin(seed * 13.7 + i * 0.91));
+    for (let k = 0; k < 3; k++) colors.set([c.r, c.g, c.b], (i + k) * 3);
+  }
+  geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+}
+
+const strataMaterial = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+
 /**
  * A low-poly rock, about 2 m across and 2 m tall, origin on the ground.
  * Roughly an upright cylinder, the shape the rules use for collision and shade.
+ * `aspect` (height / radius) lets tall spires get more bands than low boulders.
  */
-export function buildRock(seed: number): THREE.Object3D {
-  const geo = new THREE.CylinderGeometry(0.85, 1, 2, 7, 2);
+export function buildRock(seed: number, aspect = 2): THREE.Object3D {
+  const rows = THREE.MathUtils.clamp(Math.round(aspect * 2), 3, 10);
+  let geo: THREE.BufferGeometry = new THREE.CylinderGeometry(0.82, 1, 2, 8, rows);
   const pos = geo.getAttribute("position");
   for (let i = 0; i < pos.count; i++) {
-    const k = 0.92 + 0.1 * Math.abs(Math.sin(seed * 12.9898 + i * 78.233));
-    const top = pos.getY(i) > 0.9 ? 0.9 + 0.2 * Math.abs(Math.sin(seed * 3.1 + i)) : 1;
-    pos.setXYZ(i, pos.getX(i) * k, pos.getY(i) * top, pos.getZ(i) * k);
+    const y = pos.getY(i);
+    // Eroded profile: ledges in and out per row, a crumbly top.
+    const ledge = 0.9 + 0.12 * Math.abs(Math.sin(seed * 12.9898 + Math.round(y * rows) * 4.1));
+    const k = ledge * (0.94 + 0.08 * Math.abs(Math.sin(seed * 3.3 + i * 78.233)));
+    const top = y > 0.99 ? 0.9 + 0.18 * Math.abs(Math.sin(seed * 3.1 + i)) : 1;
+    pos.setXYZ(i, pos.getX(i) * k, y * top, pos.getZ(i) * k);
   }
+  geo = geo.toNonIndexed();
   geo.computeVertexNormals();
-  const mesh = new THREE.Mesh(geo, flat(0xa4683f));
+  paintStrata(geo, seed, 2 / Math.max(3, rows * 0.8), 1);
+  const mesh = new THREE.Mesh(geo, strataMaterial);
   mesh.position.y = 1;
   mesh.receiveShadow = true;
   const g = new THREE.Group();
@@ -115,17 +147,42 @@ export function buildRock(seed: number): THREE.Object3D {
   return g;
 }
 
-/** A crumbling ruin wall block, 1 m long, 1 m thick and 1 m tall at scale 1; scaled per wall. */
-export function buildWall(seed: number): THREE.Object3D {
-  const geo = new THREE.BoxGeometry(1, 1, 1, 3, 2, 1);
+/**
+ * A crumbling ruin wall block, 1 m long, 1 m thick and 1 m tall at scale 1; scaled per wall.
+ * `length` and `height` (the size it will be stretched to) keep the stone courses square-ish.
+ */
+export function buildWall(seed: number, length = 4, height = 2): THREE.Object3D {
+  const segX = THREE.MathUtils.clamp(Math.round(length / 0.8), 2, 24);
+  const segY = THREE.MathUtils.clamp(Math.round(height / 0.45), 2, 12);
+  let geo: THREE.BufferGeometry = new THREE.BoxGeometry(1, 1, 1, segX, segY, 1);
   const pos = geo.getAttribute("position");
   for (let i = 0; i < pos.count; i++) {
     // Ragged top edge; sides stay straight so the wall matches its collision box.
-    if (pos.getY(i) > 0.49) pos.setY(i, 0.5 - 0.18 * Math.abs(Math.sin(seed * 5.3 + pos.getX(i) * 9.1)));
+    if (pos.getY(i) > 0.49) pos.setY(i, 0.5 - 0.22 * Math.abs(Math.sin(seed * 5.3 + pos.getX(i) * 9.1)));
   }
   geo.translate(0, 0.5, 0);
+  geo = geo.toNonIndexed();
   geo.computeVertexNormals();
-  const mesh = new THREE.Mesh(geo, flat(0xc08a5a));
+  // Mud-brick courses: alternating tones per row, with the odd darker block.
+  const p2 = geo.getAttribute("position");
+  const colors = new Float32Array(p2.count * 3);
+  const c = new THREE.Color();
+  const base = [new THREE.Color(0xcf9a68), new THREE.Color(0xbf8657)];
+  for (let i = 0; i < p2.count; i += 3) {
+    const y = (p2.getY(i) + p2.getY(i + 1) + p2.getY(i + 2)) / 3;
+    const x = (p2.getX(i) + p2.getX(i + 1) + p2.getX(i + 2)) / 3;
+    const row = Math.floor(y * segY);
+    const col = Math.floor((x + 0.5) * segX + (row % 2) * 0.5);
+    c.copy(base[row % 2]!);
+    const r = Math.abs(Math.sin(seed * 9.7 + row * 17.3 + col * 31.1));
+    if (r > 0.85) c.multiplyScalar(0.85);
+    c.offsetHSL(0, 0, 0.04 * (r - 0.5));
+    // Darker, sand-stained base.
+    c.lerp(new THREE.Color(0x9a6640), (1 - THREE.MathUtils.smoothstep(y, 0, 0.25)) * 0.5);
+    for (let k = 0; k < 3; k++) colors.set([c.r, c.g, c.b], (i + k) * 3);
+  }
+  geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  const mesh = new THREE.Mesh(geo, strataMaterial);
   mesh.receiveShadow = true;
   const g = new THREE.Group();
   g.add(mesh);

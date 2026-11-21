@@ -107,7 +107,9 @@ export class Minimap {
 export function drawHealth(fill: HTMLElement, label: HTMLElement, health: number, phase: string, inShade: boolean): void {
   const h = Math.max(0, Math.min(100, health));
   fill.style.width = `${h}%`;
-  fill.style.background = h > 50 ? "#4f9d4a" : h > 20 ? "#d08a2c" : "#b8322a";
+  fill.style.backgroundColor = h > 50 ? "#3fa7cf" : h > 20 ? "#e09a3a" : "#d2412f";
+  const box = fill.closest<HTMLElement>("#health");
+  if (box) box.dataset.level = phase !== "dead" && h <= 20 ? "low" : "ok";
   const state =
     phase === "dead" ? "Dead" : phase === "terminal" ? "Dying" : h <= 20 ? "Desperate" : h <= 50 ? "Dangerous" : "Hydrated";
   label.textContent = `${Math.ceil(h)}% · ${state}${phase !== "dead" && inShade ? " · in shade" : ""}`;
