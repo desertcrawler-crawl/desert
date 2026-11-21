@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Desert Survival</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <form id="join" class="panel" autocomplete="off">
+      <h1>Desert Survival</h1>
+      <p class="sub">You wake up in the desert. Find water.</p>
+      <input id="name" maxlength="20" placeholder="Your name" required />
+      <button type="submit">Play</button>
+      <p id="join-error" class="error" hidden></p>
+    </form>
+
+    <div id="hud" hidden>
+      <div id="status"></div>
+      <div class="help">W/S crawl forward/back · A/D turn · drag mouse to look · wheel to zoom</div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

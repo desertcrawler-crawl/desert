@@ -1,0 +1,23 @@
+{
+  "name": "@desert/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "NODE_ENV=production tsx src/index.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@colyseus/core": "0.18.29",
+    "@colyseus/schema": "5.0.50",
+    "@colyseus/ws-transport": "0.18.5",
+    "@desert/sim": "workspace:*",
+    "express": "5.1.0",
+    "tsx": "4.20.6"
+  },
+  "devDependencies": {
+    "@colyseus/sdk": "0.18.10",
+    "@types/express": "5.0.3"
+  }
+}
