@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { terrainHeight, type MoveInput } from "@desert/sim";
 import { loadArt } from "./art/loader.ts";
+import { BodySounds, DesertAudio } from "./audio/audio.ts";
 import { Avatar } from "./avatar.ts";
 import { FollowCamera } from "./camera.ts";
 import { drawHealth, Minimap } from "./hud.ts";
@@ -13,6 +14,7 @@ import {
   placeMarker,
   placeScorpion,
   placeWell,
+  DryingWell,
   Sparkle,
   type PropTemplates,
 } from "./props.ts";
@@ -33,6 +35,32 @@ const dyingNotice = $<HTMLDivElement>("#dying");
 const deadPanel = $<HTMLDivElement>("#dead");
 const rejoinButton = $<HTMLButtonElement>("#rejoin");
 const chatRoot = $<HTMLDivElement>("#chat");
+const soundBox = $<HTMLDivElement>("#sound");
+const muteButton = $<HTMLButtonElement>("#mute");
+const volumeSlider = $<HTMLInputElement>("#volume");
+
+const audio = new DesertAudio();
+function showSound() {
+  muteButton.textContent = audio.isMuted ? "Sound off" : "Sound on";
+  volumeSlider.value = String(audio.level);
+}
+muteButton.addEventListener("click", () => {
+  audio.setMuted(!audio.isMuted);
+  showSound();
+  muteButton.blur();
+});
+volumeSlider.addEventListener("input", () => {
+  audio.setVolume(Number(volumeSlider.value));
+  if (audio.isMuted && audio.level > 0) audio.setMuted(false);
+  showSound();
+});
+volumeSlider.addEventListener("change", () => volumeSlider.blur());
+window.addEventListener("keydown", (e) => {
+  if (e.code !== "KeyM" || e.repeat || document.activeElement instanceof HTMLInputElement) return;
+  audio.setMuted(!audio.isMuted);
+  showSound();
+});
+showSound();
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -58,6 +86,7 @@ try {
 
 joinForm.addEventListener("submit", async (e) => {
   e.preventDefault();
+  void audio.unlock(); // the Play click is the gesture browsers need before sound
   const button = joinForm.querySelector("button")!;
   button.disabled = true;
   joinError.hidden = true;
@@ -70,7 +99,7 @@ joinForm.addEventListener("submit", async (e) => {
   try {
     const [room, crawlerArt, props] = await Promise.all([joinDesert(name), loadArt("crawler"), loadPropTemplates()]);
     joinForm.hidden = true;
-    for (const el of [hud, minimapCanvas, healthBox, chatRoot]) el.hidden = false;
+    for (const el of [hud, minimapCanvas, healthBox, chatRoot, soundBox]) el.hidden = false;
     start(room, crawlerArt, props);
   } catch (err) {
     console.error(err);
@@ -83,6 +112,7 @@ joinForm.addEventListener("submit", async (e) => {
 /** What we draw for each player: smoothed towards the server's numbers. */
 interface Shown {
   avatar: Avatar;
+  sounds: BodySounds;
   pos: THREE.Vector3;
   heading: number;
 }
@@ -97,6 +127,7 @@ function start(
   const markers = new Map<string, THREE.Object3D>();
   const scorpions = new Map<string, THREE.Object3D>();
   const sparkles: Sparkle[] = [];
+  const drying: DryingWell[] = [];
   const skeletonBounces = new Map<string, number>();
   const minimap = new Minimap(minimapCanvas);
   let firstFrame = true;
@@ -115,13 +146,30 @@ function start(
   const chat = new ChatBox(chatRoot, (text) => room.send("chat", text));
   room.onMessage("chat", (line: ChatLine) => chat.add(line));
   room.onMessage("chatHistory", (lines: ChatLine[]) => lines.forEach((l) => chat.add(l)));
+  const at = (id: string | undefined) => (id ? shown.get(id)?.pos : undefined);
   room.onMessage("fx", (e: { type: string; from?: string; playerId?: string; target?: { kind: string; id: string } }) => {
     if (e.type === "slap" && e.target) {
       if (e.from) shown.get(e.from)?.avatar.slapping();
-      if (e.target.kind === "player") shown.get(e.target.id)?.avatar.slapped();
-      else skeletonBounces.set(e.target.id, 0.9);
+      if (e.target.kind === "player") {
+        shown.get(e.target.id)?.avatar.slapped();
+        const p = at(e.target.id);
+        if (p) audio.slap(p.x, p.z);
+      } else {
+        skeletonBounces.set(e.target.id, 0.9);
+        const m = markers.get(e.target.id);
+        if (m) {
+          audio.slap(m.position.x, m.position.z);
+          audio.clatter(m.position.x, m.position.z);
+        }
+      }
     }
-    if (e.type === "sting" && e.playerId) shown.get(e.playerId)?.avatar.slapped();
+    const p = at(e.playerId);
+    if (e.type === "sting" && e.playerId) {
+      shown.get(e.playerId)?.avatar.slapped();
+      if (p) audio.sting(p.x, p.z);
+    }
+    if (e.type === "drink" && p) audio.drink(p.x, p.z);
+    if (e.type === "death" && p) audio.groan(p.x, p.z);
   });
   canvas.addEventListener("pointerdown", twitchIfDying);
   rejoinButton.addEventListener("click", () => room.send("rejoin"));
@@ -145,7 +193,7 @@ function start(
     st.players.forEach((p, id) => {
       let s = shown.get(id);
       if (!s) {
-        s = { avatar: new Avatar(p.name, crawlerArt), pos: new THREE.Vector3(p.x, terrainHeight(p.x, p.z), p.z), heading: p.heading };
+        s = { avatar: new Avatar(p.name, crawlerArt), sounds: new BodySounds(), pos: new THREE.Vector3(p.x, terrainHeight(p.x, p.z), p.z), heading: p.heading };
         scene.add(s.avatar.object);
         shown.set(id, s);
       }
@@ -158,6 +206,7 @@ function start(
       // Models face +Z (glTF standard). Heading 0 = north = -Z, growing clockwise from above.
       s.avatar.object.rotation.y = Math.PI - s.heading;
       s.avatar.update(dt, speed, p.phase, p.health, p.posture);
+      s.sounds.update(audio, dt, s.pos.x, s.pos.z, p.phase, p.posture, p.health, speed);
     });
     for (const [id, s] of shown) {
       if (!st.players.has(id)) {
@@ -176,10 +225,11 @@ function start(
     });
     for (const [id, o] of wells) {
       if (!st.wells.has(id)) {
-        o.removeFromParent();
+        drying.push(new DryingWell(o));
         wells.delete(id);
       }
     }
+    for (let i = drying.length - 1; i >= 0; i--) if (!drying[i]!.update(dt)) drying.splice(i, 1);
 
     // Skeletons and crosses stay for the session. New ones release a sparkle.
     st.markers.forEach((m, id) => {
@@ -189,6 +239,7 @@ function start(
       markers.set(id, o);
       if (!firstFrame) {
         const sp = new Sparkle(o.position);
+        audio.sparkle(o.position.x, o.position.z);
         scene.add(sp.object);
         sparkles.push(sp);
       }
@@ -230,10 +281,12 @@ function start(
     const mineShown = shown.get(room.sessionId);
     if (mineShown && mine) {
       follow.update(dt, mineShown.pos, mineShown.heading);
+      audio.setListener({ x: mineShown.pos.x, z: mineShown.pos.z, yaw: follow.yaw });
       // Keep the character-shadow area centred on the player; the sun direction itself never changes.
       sun.target.position.copy(mineShown.pos);
       sun.position.copy(mineShown.pos).addScaledVector(SUN_DIRECTION, 80);
     }
+    audio.update();
     renderer.render(scene, follow.camera);
   });
 }

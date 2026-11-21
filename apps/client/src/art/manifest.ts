@@ -30,7 +30,7 @@ export const ART_SLOTS = {
   well: {
     file: "well.glb",
     clips: [],
-    note: "An active water well, about 1.6 m across. Disappears once someone drinks.",
+    note: "An active water well, about 1.6 m across. Name the water surface mesh 'water': it turns dry the moment someone drinks, then the well fades away.",
   },
   skeleton: {
     file: "skeleton.glb",

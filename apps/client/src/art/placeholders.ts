@@ -144,6 +144,7 @@ export function buildWell(): THREE.Object3D {
   const water = new THREE.Mesh(new THREE.CircleGeometry(0.72, 8), new THREE.MeshLambertMaterial({ color: 0x2f6d8c }));
   water.rotation.x = -Math.PI / 2;
   water.position.y = 0.38;
+  water.name = "water";
   for (const m of [ring, rim]) m.castShadow = true;
   g.add(ring, rim, water);
   return g;

@@ -61,6 +61,43 @@ export function placeMarker(t: PropTemplates, name: string, x: number, z: number
 }
 
 /** The small luminous life force that floats up and vanishes after death. */
+/** Spent-well timing (spec proposal; exact fade timing is open): dry at once, inert for 2 s, then a 1.5 s fade. */
+const WELL_INERT_SECONDS = 2;
+const WELL_FADE_SECONDS = 1.5;
+
+/**
+ * A well someone just drank from. The water dries at once (the minimap marker is
+ * already gone), the empty well stays briefly as an inert prop, then fades out.
+ */
+export class DryingWell {
+  private age = 0;
+  private readonly materials: THREE.Material[] = [];
+  constructor(private readonly object: THREE.Object3D) {
+    object.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      // Own copies, so fading one well never fades the others.
+      const mat = (Array.isArray(mesh.material) ? mesh.material[0]! : mesh.material).clone() as THREE.MeshLambertMaterial;
+      if (o.name === "water") mat.color?.set(0xb08a5c);
+      mat.transparent = true;
+      mesh.material = mat;
+      this.materials.push(mat);
+    });
+  }
+  /** Returns false when finished. */
+  update(dt: number): boolean {
+    this.age += dt;
+    const fade = Math.min(1, Math.max(0, (this.age - WELL_INERT_SECONDS) / WELL_FADE_SECONDS));
+    for (const m of this.materials) m.opacity = 1 - fade;
+    if (fade >= 1) {
+      this.object.removeFromParent();
+      for (const m of this.materials) m.dispose();
+      return false;
+    }
+    return true;
+  }
+}
+
 export class Sparkle {
   readonly object: THREE.Sprite;
   private age = 0;
