@@ -24,7 +24,7 @@ export interface ArtSlot {
 export const ART_SLOTS = {
   crawler: {
     file: "crawler.glb",
-    clips: ["crawl", "crawl_idle", "walk", "walk_idle", "stand_up", "lie_down", "dying_breathe", "slap", "slapped"],
+    clips: ["crawl", "crawl_idle", "walk", "walk_idle", "stand_up", "lie_down", "dying_breathe", "slap", "slapped", "death", "drink"],
     note: "The stranded old man: long white hair and beard, rags, very thin, hunched. About 1.8 m tall standing.",
   },
   well: {
@@ -51,6 +51,26 @@ export const ART_SLOTS = {
     file: "rock.glb",
     clips: [],
     note: "Generic desert rock, about 2 m across and 2 m tall. Scaled per rock in the map.",
+  },
+  dead_tree: {
+    file: "dead_tree.glb",
+    clips: [],
+    note: "Bare, sun-bleached dead tree, about 4.5 m tall. Not placed in the map yet.",
+  },
+  shrub: {
+    file: "shrub.glb",
+    clips: [],
+    note: "Dry desert shrub, about 1.5 m across and 0.9 m tall. Not placed in the map yet.",
+  },
+  cactus: {
+    file: "cactus.glb",
+    clips: [],
+    note: "Tall cactus, about 2.4 m tall. Not placed in the map yet.",
+  },
+  ruin_column: {
+    file: "ruin_column.glb",
+    clips: [],
+    note: "Broken stone column on a plinth, about 3 m tall. Not placed in the map yet.",
   },
   wall: {
     file: "ruin_wall.glb",
