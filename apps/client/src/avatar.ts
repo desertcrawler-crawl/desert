@@ -3,6 +3,8 @@ import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js
 import type { GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { buildCrawler, poseCrawler, poseLying, type CrawlerRig } from "./art/placeholders.ts";
 
+const ONE_SHOT_CLIPS = new Set(["stand_up", "lie_down", "death"]);
+
 /**
  * One character on screen. Uses the artist's crawler.glb when present
  * (playing its "crawl" / "crawl_idle" clips), otherwise the code placeholder.
@@ -22,7 +24,15 @@ export class Avatar {
       const model = cloneSkinned(art.scene);
       this.object.add(model);
       this.mixer = new THREE.AnimationMixer(model);
-      for (const clip of art.animations) this.actions.set(clip.name, this.mixer.clipAction(clip));
+      for (const clip of art.animations) {
+        const action = this.mixer.clipAction(clip);
+        // Transitions play once and hold their last pose instead of looping.
+        if (ONE_SHOT_CLIPS.has(clip.name)) {
+          action.setLoop(THREE.LoopOnce, 1);
+          action.clampWhenFinished = true;
+        }
+        this.actions.set(clip.name, action);
+      }
     } else {
       this.rig = buildCrawler();
       this.object.add(this.rig.root);
@@ -70,6 +80,7 @@ export class Avatar {
     const wantUp = posture === "walk" || posture === "standingUp" ? 1 : 0;
     const rate = posture === "standingUp" ? 1 / 3 : 1 / 2;
     this.upright += Math.sign(wantUp - this.upright) * Math.min(Math.abs(wantUp - this.upright), dt * rate);
+    this.label.position.y = 1.3 + 0.7 * this.upright; // keep the name above the head when standing
     if (this.mixer) {
       const clip = dying
         ? "dying_breathe"
