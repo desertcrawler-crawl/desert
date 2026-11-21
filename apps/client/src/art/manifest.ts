@@ -27,6 +27,21 @@ export const ART_SLOTS = {
     clips: ["crawl", "crawl_idle", "walk", "walk_idle", "stand_up", "lie_down", "dying_breathe", "slapped"],
     note: "The stranded old man: long white hair and beard, rags, very thin, hunched. About 1.8 m tall standing.",
   },
+  well: {
+    file: "well.glb",
+    clips: [],
+    note: "An active water well, about 1.6 m across. Disappears once someone drinks.",
+  },
+  skeleton: {
+    file: "skeleton.glb",
+    clips: ["slapped"],
+    note: "Skeleton lying on its back where a player died, about 1.7 m long. Name the skull mesh 'skull' so slaps can bounce it later.",
+  },
+  cross: {
+    file: "cross.glb",
+    clips: [],
+    note: "Wooden grave cross, about 1.1 m tall. The player's name is drawn above it by the game.",
+  },
   rock: {
     file: "rock.glb",
     clips: [],

@@ -71,6 +71,27 @@ describe("desert room", () => {
   });
 });
 
+describe("survival over the network", () => {
+  it("sends health, phase and wells; a new player starts at 40% with water in the world", async () => {
+    const a = await new Client(endpoint).joinOrCreate(ROOM_NAME, { name: "Thirsty" });
+    await waitFor(() => a.state.players?.get(a.sessionId) !== undefined && a.state.wells?.size > 0);
+    const me = a.state.players.get(a.sessionId);
+    expect(me.phase).toBe("alive");
+    expect(me.health).toBeLessThanOrEqual(TUNING.health.firstEntry);
+    expect(me.health).toBeGreaterThan(TUNING.health.firstEntry - 1);
+    await a.leave();
+  });
+
+  it("ignores a rejoin request from a player who is not dead", async () => {
+    const a = await new Client(endpoint).joinOrCreate(ROOM_NAME, { name: "Alive" });
+    await waitFor(() => a.state.players?.get(a.sessionId) !== undefined);
+    a.send("rejoin");
+    await new Promise((r) => setTimeout(r, 150));
+    expect(a.state.players.get(a.sessionId).health).toBeLessThan(TUNING.health.firstEntry + 0.01);
+    await a.leave();
+  });
+});
+
 describe("cleanName", () => {
   it("trims, strips control characters and limits length", () => {
     expect(cleanName("  Ada\u0007 ")).toBe("Ada");

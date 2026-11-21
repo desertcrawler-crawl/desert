@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import type { GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { buildCrawler, poseCrawler, type CrawlerRig } from "./art/placeholders.ts";
+import { buildCrawler, poseCrawler, poseLying, type CrawlerRig } from "./art/placeholders.ts";
 
 /**
  * One character on screen. Uses the artist's crawler.glb when present
@@ -32,16 +32,36 @@ export class Avatar {
     this.object.add(this.label);
   }
 
-  /** speed is metres per second actually travelled, used to drive the cycle. */
-  update(dt: number, speed: number): void {
-    const moving = speed > 0.05;
-    this.breath += dt * (2.2 + speed * 2);
+  private twitchTime = 0;
+
+  /** A tiny involuntary reaction while dying (keyboard or mouse input). */
+  twitch(): void {
+    this.twitchTime = 0.5;
+  }
+
+  /**
+   * speed: metres per second actually travelled, drives the crawl cycle.
+   * phase: "alive" | "terminal" | "dead". health: 0-100, weakens dying breath.
+   */
+  update(dt: number, speed: number, phase: string, health: number): void {
+    this.object.visible = phase !== "dead"; // the skeleton marker takes over
+    if (phase === "dead") return;
+    const moving = phase === "alive" && speed > 0.05;
+    const dying = phase === "terminal";
+    this.breath += dt * (dying ? 1.4 : 2.2 + speed * 2);
+    this.twitchTime = Math.max(0, this.twitchTime - dt);
+    const twitch = Math.sin(this.twitchTime * 25) * this.twitchTime * 2;
     if (this.mixer) {
-      this.play(moving ? "crawl" : "crawl_idle");
+      this.play(dying ? "dying_breathe" : moving ? "crawl" : "crawl_idle");
       this.mixer.update(dt);
     } else if (this.rig) {
-      if (moving) this.phase += dt * speed * 7;
-      poseCrawler(this.rig, this.phase, this.breath);
+      if (dying) {
+        poseLying(this.rig, this.breath, Math.max(0.15, health / 10), twitch);
+      } else {
+        if (moving) this.phase += dt * speed * 7;
+        this.rig.body.rotation.set(0, 0, 0);
+        poseCrawler(this.rig, this.phase, this.breath);
+      }
     }
   }
 
@@ -60,7 +80,7 @@ export class Avatar {
   }
 }
 
-function makeLabel(text: string): THREE.Sprite {
+export function makeLabel(text: string): THREE.Sprite {
   const canvas = document.createElement("canvas");
   canvas.width = 256;
   canvas.height = 64;

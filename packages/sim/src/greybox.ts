@@ -1,8 +1,8 @@
 /**
  * Greybox map used until the real map is authored (milestone M3).
  *
- * It is a small square of gentle dunes with a few rocks, generated in code so
- * the server and the browser get exactly the same ground without any asset.
+ * A small square of gentle dunes with a few rocks, generated in code so the
+ * server and the browser get exactly the same ground without any asset.
  * Coordinates are metres. x grows east, z grows south (Three.js convention);
  * north is -z.
  */
@@ -10,18 +10,25 @@ export interface Rock {
   id: string;
   x: number;
   z: number;
-  /** Rough radius of the rock's footprint in metres. */
+  /** Radius of the rock's footprint in metres (rocks are treated as upright cylinders). */
   radius: number;
   /** Height in metres. */
   height: number;
+}
+
+export interface Site {
+  x: number;
+  z: number;
 }
 
 export interface GreyboxMap {
   /** Half the side length of the square playable area, metres. */
   halfSize: number;
   rocks: Rock[];
-  /** Fixed spawn points for M0/M1 testing only. Real spawns arrive with the map in M3. */
-  spawns: { x: number; z: number }[];
+  /** Predefined first-entry spawn points. Test positions only; real spawns arrive with the map in M3. */
+  spawns: Site[];
+  /** Authored places where a well may appear. Test positions only. */
+  wellSites: Site[];
 }
 
 export const GREYBOX: GreyboxMap = {
@@ -32,13 +39,31 @@ export const GREYBOX: GreyboxMap = {
     { id: "rock-c", x: 30, z: 24, radius: 2.5, height: 2.5 },
     { id: "rock-d", x: -8, z: 34, radius: 4, height: 3.5 },
     { id: "rock-e", x: 45, z: -40, radius: 6, height: 7 },
+    { id: "rock-f", x: -48, z: -30, radius: 4.5, height: 5 },
+    { id: "rock-g", x: -60, z: 52, radius: 3, height: 3 },
+    { id: "rock-h", x: 62, z: 58, radius: 5, height: 4.5 },
+    { id: "rock-i", x: 4, z: -62, radius: 3, height: 3.5 },
   ],
   spawns: [
     { x: 0, z: 0 },
-    { x: 6, z: 4 },
-    { x: -6, z: 4 },
-    { x: 4, z: -6 },
-    { x: -4, z: -6 },
+    { x: 8, z: 6 },
+    { x: -8, z: 6 },
+    { x: 6, z: -9 },
+    { x: -6, z: -9 },
+  ],
+  wellSites: [
+    { x: 22, z: -30 },
+    { x: -34, z: 14 },
+    { x: 38, z: 10 },
+    { x: -14, z: 48 },
+    { x: 56, z: -30 },
+    { x: -56, z: -22 },
+    { x: 14, z: 56 },
+    { x: -40, z: -60 },
+    { x: 70, z: 40 },
+    { x: -72, z: 44 },
+    { x: 10, z: -74 },
+    { x: 76, z: -72 },
   ],
 };
 

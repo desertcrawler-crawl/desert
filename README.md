@@ -2,7 +2,9 @@
 
 A browser-based multiplayer survival game: crawl through a hot desert, find single-use water wells before other players do, and try not to die. See the design spec and the architecture proposal for the full picture.
 
-**Status: milestone M0 (foundation).** You can open the game, enter a name, and crawl around a small greybox desert with other players in the same session. There is no health, water or death yet; those arrive in M1.
+**Status: milestone M1 (greybox survival loop).** On a small placeholder map you start at 40% health, lose health faster in the sun than in the shade of rocks, drink automatically from single-use wells (each one serves exactly one player), and at 10% collapse into an irreversible dying state that lasts at least 60 seconds. Death leaves a skeleton and a named cross for the rest of the session, and you can rejoin at the same spot at 100%. A north-up minimap shows you, every other player and every active well.
+
+To try dying without waiting, start the server with low starting health: `DESERT_START_HEALTH=12 pnpm dev`.
 
 ## Run it on your computer
 

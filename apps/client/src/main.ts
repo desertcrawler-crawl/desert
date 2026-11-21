@@ -3,16 +3,26 @@ import { terrainHeight, type MoveInput } from "@desert/sim";
 import { loadArt } from "./art/loader.ts";
 import { Avatar } from "./avatar.ts";
 import { FollowCamera } from "./camera.ts";
+import { drawHealth, Minimap } from "./hud.ts";
 import { KeyboardInput } from "./input.ts";
 import { joinDesert } from "./net.ts";
+import { loadPropTemplates, placeMarker, placeWell, Sparkle, type PropTemplates } from "./props.ts";
 import { buildWorld, SUN_DIRECTION } from "./world.ts";
 
-const canvas = document.querySelector<HTMLCanvasElement>("#scene")!;
-const joinForm = document.querySelector<HTMLFormElement>("#join")!;
-const nameInput = document.querySelector<HTMLInputElement>("#name")!;
-const joinError = document.querySelector<HTMLParagraphElement>("#join-error")!;
-const hud = document.querySelector<HTMLDivElement>("#hud")!;
-const status = document.querySelector<HTMLDivElement>("#status")!;
+const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
+const canvas = $<HTMLCanvasElement>("#scene");
+const joinForm = $<HTMLFormElement>("#join");
+const nameInput = $<HTMLInputElement>("#name");
+const joinError = $<HTMLParagraphElement>("#join-error");
+const hud = $<HTMLDivElement>("#hud");
+const status = $<HTMLDivElement>("#status");
+const minimapCanvas = $<HTMLCanvasElement>("#minimap");
+const healthBox = $<HTMLDivElement>("#health");
+const healthFill = $<HTMLDivElement>("#health .fill");
+const healthLabel = $<HTMLDivElement>("#health .label");
+const dyingNotice = $<HTMLDivElement>("#dying");
+const deadPanel = $<HTMLDivElement>("#dead");
+const rejoinButton = $<HTMLButtonElement>("#rejoin");
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -36,14 +46,6 @@ try {
   /* storage unavailable: fine */
 }
 
-/** What we draw for each player: smoothed towards the server's numbers. */
-interface Shown {
-  avatar: Avatar;
-  pos: THREE.Vector3;
-  heading: number;
-}
-const shown = new Map<string, Shown>();
-
 joinForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const button = joinForm.querySelector("button")!;
@@ -56,10 +58,10 @@ joinForm.addEventListener("submit", async (e) => {
     /* ignore */
   }
   try {
-    const [room, crawlerArt] = await Promise.all([joinDesert(name), loadArt("crawler")]);
+    const [room, crawlerArt, props] = await Promise.all([joinDesert(name), loadArt("crawler"), loadPropTemplates()]);
     joinForm.hidden = true;
-    hud.hidden = false;
-    start(room, crawlerArt);
+    for (const el of [hud, minimapCanvas, healthBox]) el.hidden = false;
+    start(room, crawlerArt, props);
   } catch (err) {
     console.error(err);
     joinError.textContent = "Could not reach the desert server. Is it running?";
@@ -68,8 +70,35 @@ joinForm.addEventListener("submit", async (e) => {
   }
 });
 
-function start(room: Awaited<ReturnType<typeof joinDesert>>, crawlerArt: Awaited<ReturnType<typeof loadArt>>) {
-  new KeyboardInput((input: MoveInput) => room.send("input", input));
+/** What we draw for each player: smoothed towards the server's numbers. */
+interface Shown {
+  avatar: Avatar;
+  pos: THREE.Vector3;
+  heading: number;
+}
+
+function start(
+  room: Awaited<ReturnType<typeof joinDesert>>,
+  crawlerArt: Awaited<ReturnType<typeof loadArt>>,
+  props: PropTemplates,
+) {
+  const shown = new Map<string, Shown>();
+  const wells = new Map<string, THREE.Object3D>();
+  const markers = new Map<string, THREE.Object3D>();
+  const sparkles: Sparkle[] = [];
+  const minimap = new Minimap(minimapCanvas);
+  let firstFrame = true;
+
+  const me = () => room.state.players?.get(room.sessionId);
+  new KeyboardInput((input: MoveInput) => {
+    room.send("input", input);
+    // While dying, input only causes a tiny involuntary reaction.
+    if (me()?.phase === "terminal" && (input.forward || input.turn)) shown.get(room.sessionId)?.avatar.twitch();
+  });
+  canvas.addEventListener("pointerdown", () => {
+    if (me()?.phase === "terminal") shown.get(room.sessionId)?.avatar.twitch();
+  });
+  rejoinButton.addEventListener("click", () => room.send("rejoin"));
   room.onLeave(() => {
     status.textContent = "Disconnected from the desert. Reload to play again.";
   });
@@ -79,42 +108,88 @@ function start(room: Awaited<ReturnType<typeof joinDesert>>, crawlerArt: Awaited
 
   renderer.setAnimationLoop(() => {
     const dt = Math.min(clock.getDelta(), 0.1);
-    const players = room.state.players;
-    if (players) {
-      // Add and update.
-      players.forEach((p, id) => {
-        let s = shown.get(id);
-        if (!s) {
-          s = { avatar: new Avatar(p.name, crawlerArt), pos: new THREE.Vector3(p.x, terrainHeight(p.x, p.z), p.z), heading: p.heading };
-          scene.add(s.avatar.object);
-          shown.set(id, s);
-        }
-        tmp.set(p.x, terrainHeight(p.x, p.z), p.z);
-        const before = s.pos.clone();
-        s.pos.lerp(tmp, 1 - Math.exp(-dt * 10));
-        s.heading = lerpAngle(s.heading, p.heading, 1 - Math.exp(-dt * 10));
-        const speed = before.distanceTo(s.pos) / Math.max(dt, 1e-3);
-        s.avatar.object.position.copy(s.pos);
-        // Models face +Z (glTF standard). Heading 0 = north = -Z, growing clockwise from above.
-        s.avatar.object.rotation.y = Math.PI - s.heading;
-        s.avatar.update(dt, speed);
-      });
-      // Remove players who left.
-      for (const [id, s] of shown) {
-        if (!players.has(id)) {
-          s.avatar.dispose();
-          shown.delete(id);
-        }
-      }
-      status.textContent = `${players.size} / 30 in this desert`;
+    const st = room.state;
+    // Collections arrive with the first full state; skip frames until then.
+    if (!st.players || !st.wells || !st.markers) {
+      renderer.render(scene, follow.camera);
+      return;
     }
 
-    const me = shown.get(room.sessionId);
-    if (me) {
-      follow.update(dt, me.pos, me.heading);
-      // Keep the shadow area centred on the player; the sun direction itself never changes.
-      sun.target.position.copy(me.pos);
-      sun.position.copy(me.pos).addScaledVector(SUN_DIRECTION, 80);
+    // Players.
+    st.players.forEach((p, id) => {
+      let s = shown.get(id);
+      if (!s) {
+        s = { avatar: new Avatar(p.name, crawlerArt), pos: new THREE.Vector3(p.x, terrainHeight(p.x, p.z), p.z), heading: p.heading };
+        scene.add(s.avatar.object);
+        shown.set(id, s);
+      }
+      tmp.set(p.x, terrainHeight(p.x, p.z), p.z);
+      const before = s.pos.clone();
+      s.pos.lerp(tmp, 1 - Math.exp(-dt * 10));
+      s.heading = lerpAngle(s.heading, p.heading, 1 - Math.exp(-dt * 10));
+      const speed = before.distanceTo(s.pos) / Math.max(dt, 1e-3);
+      s.avatar.object.position.copy(s.pos);
+      // Models face +Z (glTF standard). Heading 0 = north = -Z, growing clockwise from above.
+      s.avatar.object.rotation.y = Math.PI - s.heading;
+      s.avatar.update(dt, speed, p.phase, p.health);
+    });
+    for (const [id, s] of shown) {
+      if (!st.players.has(id)) {
+        s.avatar.dispose();
+        shown.delete(id);
+      }
+    }
+
+    // Wells: an emptied well disappears for everyone.
+    st.wells.forEach((w, id) => {
+      if (!wells.has(id)) {
+        const o = placeWell(props, w.x, w.z);
+        scene.add(o);
+        wells.set(id, o);
+      }
+    });
+    for (const [id, o] of wells) {
+      if (!st.wells.has(id)) {
+        o.removeFromParent();
+        wells.delete(id);
+      }
+    }
+
+    // Skeletons and crosses stay for the session. New ones release a sparkle.
+    st.markers.forEach((m, id) => {
+      if (markers.has(id)) return;
+      const o = placeMarker(props, m.name, m.x, m.z, m.heading);
+      scene.add(o);
+      markers.set(id, o);
+      if (!firstFrame) {
+        const sp = new Sparkle(o.position);
+        scene.add(sp.object);
+        sparkles.push(sp);
+      }
+    });
+    for (let i = sparkles.length - 1; i >= 0; i--) if (!sparkles[i]!.update(dt)) sparkles.splice(i, 1);
+    firstFrame = false;
+
+    // HUD.
+    const mine = me();
+    if (mine) {
+      drawHealth(healthFill, healthLabel, mine.health, mine.phase, mine.inShade);
+      dyingNotice.hidden = mine.phase !== "terminal";
+      deadPanel.hidden = mine.phase !== "dead";
+    }
+    const others: { x: number; z: number; heading: number; phase: string }[] = [];
+    st.players.forEach((p, id) => id !== room.sessionId && others.push(p));
+    const wellList: { x: number; z: number }[] = [];
+    st.wells.forEach((w) => wellList.push(w));
+    minimap.draw(mine, others, wellList);
+    status.textContent = `${st.players.size} / 30 in this desert`;
+
+    const mineShown = shown.get(room.sessionId);
+    if (mineShown && mine) {
+      follow.update(dt, mineShown.pos, mineShown.heading);
+      // Keep the character-shadow area centred on the player; the sun direction itself never changes.
+      sun.target.position.copy(mineShown.pos);
+      sun.position.copy(mineShown.pos).addScaledVector(SUN_DIRECTION, 80);
     }
     renderer.render(scene, follow.camera);
   });

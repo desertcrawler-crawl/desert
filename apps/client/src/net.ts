@@ -12,10 +12,28 @@ export interface RemotePlayer {
   x: number;
   z: number;
   heading: number;
+  health: number;
+  phase: "alive" | "terminal" | "dead";
+  inShade: boolean;
 }
 
+export interface RemoteWell {
+  x: number;
+  z: number;
+}
+
+export interface RemoteMarker {
+  name: string;
+  x: number;
+  z: number;
+  heading: number;
+}
+
+/** Mirrors apps/server/src/state.ts. Read-only on the client. */
 export interface RoomState {
-  players: Map<string, RemotePlayer> & { forEach(cb: (p: RemotePlayer, id: string) => void): void };
+  players: Map<string, RemotePlayer>;
+  wells: Map<string, RemoteWell>;
+  markers: Map<string, RemoteMarker>;
 }
 
 export async function joinDesert(name: string): Promise<Room<any, RoomState>> {

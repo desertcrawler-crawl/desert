@@ -1,6 +1,6 @@
 import { Room, type Client } from "@colyseus/core";
-import { GREYBOX, IDLE_INPUT, sanitizeInput, stepBody, TUNING, type MoveInput } from "@desert/sim";
-import { DesertState, PlayerState } from "./state.ts";
+import { Session, TUNING } from "@desert/sim";
+import { DesertState, MarkerState, PlayerState, WellState } from "./state.ts";
 
 export interface JoinOptions {
   name?: unknown;
@@ -10,52 +10,91 @@ export interface JoinOptions {
 export const ROOM_NAME = "desert";
 
 /**
- * One session of the desert.
- * The server owns all state; clients only send intentions ("input").
+ * One session of the desert. The rules run in the shared Session class;
+ * this room only handles connections and copies the results into the
+ * synchronised state. Clients send intentions, never results.
  */
 export class DesertRoom extends Room<{ state: DesertState }> {
   maxClients = TUNING.session.maxPlayers;
   state = new DesertState();
-
-  private intents = new Map<string, MoveInput>();
-  private spawnCursor = 0;
+  readonly session = new Session({ firstEntryHealth: playtestStartHealth() });
 
   onCreate() {
-    this.onMessage("input", (client, raw) => {
-      // Never trust the client: keep only a valid intention.
-      this.intents.set(client.sessionId, sanitizeInput(raw));
-    });
+    this.onMessage("input", (client, raw) => this.session.setInput(client.sessionId, raw));
+    this.onMessage("rejoin", (client) => this.session.rejoin(client.sessionId));
 
     const dt = 1 / TUNING.tickHz;
     this.setSimulationInterval(() => this.tick(dt), 1000 / TUNING.tickHz);
   }
 
   onJoin(client: Client, options?: JoinOptions) {
-    const spawn = GREYBOX.spawns[this.spawnCursor++ % GREYBOX.spawns.length]!;
-    const player = new PlayerState();
-    player.name = cleanName(options?.name);
-    player.x = spawn.x;
-    player.z = spawn.z;
-    player.heading = 0;
-    this.state.players.set(client.sessionId, player);
-    this.intents.set(client.sessionId, IDLE_INPUT);
+    this.session.join(client.sessionId, cleanName(options?.name));
+    this.sync();
   }
 
   onLeave(client: Client) {
     // Reconnect policy is an open design question (spec section 16); for now a leave is final.
-    this.state.players.delete(client.sessionId);
-    this.intents.delete(client.sessionId);
+    this.session.leave(client.sessionId);
+    this.sync();
   }
 
-  /** One fixed simulation step. Order of systems will grow here (see architecture doc). */
   tick(dt: number) {
-    this.state.players.forEach((p, id) => {
-      const next = stepBody(p, this.intents.get(id) ?? IDLE_INPUT, dt);
-      p.x = next.x;
-      p.z = next.z;
-      p.heading = next.heading;
-    });
+    this.session.step(dt);
+    this.session.drainEvents();
+    this.sync();
   }
+
+  /** Copy the authoritative session into the replicated state. */
+  private sync() {
+    const s = this.session;
+    const st = this.state;
+
+    for (const [id, p] of s.players) {
+      let ps = st.players.get(id);
+      if (!ps) {
+        ps = new PlayerState();
+        ps.name = p.name;
+        st.players.set(id, ps);
+      }
+      ps.x = p.x;
+      ps.z = p.z;
+      ps.heading = p.heading;
+      ps.health = Math.round(p.health * 100) / 100;
+      ps.phase = p.phase;
+      ps.inShade = p.inShade;
+    }
+    for (const id of [...st.players.keys()]) if (!s.players.has(id)) st.players.delete(id);
+
+    for (const [id, w] of s.wells) {
+      if (!st.wells.has(id)) {
+        const ws = new WellState();
+        ws.x = w.x;
+        ws.z = w.z;
+        st.wells.set(id, ws);
+      }
+    }
+    for (const id of [...st.wells.keys()]) if (!s.wells.has(id)) st.wells.delete(id);
+
+    for (const [id, m] of s.markers) {
+      if (!st.markers.has(id)) {
+        const ms = new MarkerState();
+        ms.name = m.name;
+        ms.x = m.x;
+        ms.z = m.z;
+        ms.heading = m.heading;
+        st.markers.set(id, ms);
+      }
+    }
+  }
+}
+
+/**
+ * Playtest helper: DESERT_START_HEALTH=12 pnpm dev starts new players near death,
+ * so dying and rejoining can be tried without waiting minutes. Ignored if invalid.
+ */
+function playtestStartHealth(): number | undefined {
+  const v = Number(process.env.DESERT_START_HEALTH);
+  return Number.isFinite(v) && v > 0 && v <= 100 ? v : undefined;
 }
 
 /**
