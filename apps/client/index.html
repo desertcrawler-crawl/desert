@@ -19,7 +19,32 @@
 
     <div id="hud" hidden>
       <div id="status"></div>
-      <div class="help">W/S crawl forward/back · A/D turn · drag mouse to look · wheel to zoom</div>
+      <div class="help">W/S forward/back · A/D turn · Space get up and walk · C or Ctrl get down and crawl · F slap · M mute · Enter chat · drag mouse to look · wheel to zoom</div>
+    </div>
+
+    <canvas id="minimap" hidden></canvas>
+
+    <div id="sound" hidden>
+      <button id="mute" type="button" title="Mute (M)">Sound on</button>
+      <input id="volume" type="range" min="0" max="1" step="0.05" aria-label="Volume" />
+    </div>
+
+    <div id="health" hidden>
+      <div class="bar"><div class="fill"></div></div>
+      <div class="label"></div>
+    </div>
+
+    <div id="chat" hidden>
+      <div class="log"></div>
+      <input maxlength="200" placeholder="Press Enter to chat" />
+    </div>
+
+    <div id="dying" class="notice" hidden>You collapse onto your back. There is no getting up now.</div>
+
+    <div id="dead" class="panel" hidden>
+      <h1>You died</h1>
+      <p class="sub">Your skeleton and cross remain in the desert.</p>
+      <button id="rejoin" type="button">Rejoin here</button>
     </div>
 
     <script type="module" src="/src/main.ts"></script>

@@ -1,13 +1,37 @@
 import type { MoveInput } from "@desert/sim";
 
-/** Keyboard state turned into a movement intention. Sends only on change. */
+export interface InputHandlers {
+  move(input: MoveInput): void;
+  posture(want: "walk" | "crawl"): void;
+  slap(): void;
+  /** Any key or click while dying makes a tiny involuntary movement. */
+  anyInput(): void;
+}
+
+/**
+ * Keyboard controls (placeholders for the control test):
+ *   W/S  crawl or walk forward/back      A/D  turn
+ *   Space  get up and walk               Ctrl or C  get down and crawl
+ *   F  slap                              Enter  chat
+ * Note: holding Ctrl while pressing W closes the browser tab in most browsers,
+ * so C is offered as a safe alternative for crawling.
+ */
 export class KeyboardInput {
   private keys = new Set<string>();
   private last = "";
 
-  constructor(private readonly send: (input: MoveInput) => void) {
+  constructor(private readonly on: InputHandlers) {
     window.addEventListener("keydown", (e) => {
       if (isTyping(e)) return;
+      if (e.code === "Space") {
+        e.preventDefault();
+        if (!e.repeat) on.posture("walk");
+      } else if (e.code === "ControlLeft" || e.code === "ControlRight" || e.code === "KeyC") {
+        if (!e.repeat) on.posture("crawl");
+      } else if (e.code === "KeyF") {
+        if (!e.repeat) on.slap();
+      }
+      if (!e.repeat) on.anyInput();
       this.keys.add(e.code);
       this.flush();
     });
@@ -33,7 +57,7 @@ export class KeyboardInput {
     const key = `${input.forward},${input.turn}`;
     if (key !== this.last) {
       this.last = key;
-      this.send(input);
+      this.on.move(input);
     }
   }
 }
