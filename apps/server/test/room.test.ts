@@ -1,9 +1,9 @@
 import { Client } from "@colyseus/sdk";
-import type { Server } from "@colyseus/core";
+import { matchMaker, type Server } from "@colyseus/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { TUNING } from "@desert/sim";
 import { createGameServer } from "../src/app.ts";
-import { cleanName, ROOM_NAME } from "../src/DesertRoom.ts";
+import { cleanName, ROOM_NAME, type DesertRoom } from "../src/DesertRoom.ts";
 
 const PORT = 2599;
 let server: Server;
@@ -119,5 +119,43 @@ describe("cleanName", () => {
     expect(cleanName("x".repeat(50))).toHaveLength(20);
     expect(cleanName(42)).toBe("Stranger");
     expect(cleanName("   ")).toBe("Stranger");
+  });
+});
+
+describe("surviving a server restart", () => {
+  it("brings back the world and gives each browser its own character back", async () => {
+    const token = "test-token-0123456789abcdef";
+    const a = await new Client(endpoint).create(ROOM_NAME, { name: "Saved", token });
+    const b = await new Client(endpoint).joinById(a.roomId, { name: "NoToken" });
+    await waitFor(() => a.state.players?.size === 2);
+    a.send("input", { forward: 1, turn: 1 });
+    await new Promise((r) => setTimeout(r, 400));
+    a.send("input", { forward: 0, turn: 0 });
+    await new Promise((r) => setTimeout(r, 100));
+
+    const room = matchMaker.getLocalRoomById(a.roomId) as DesertRoom;
+    const saved = JSON.parse(JSON.stringify(room.toSaved()));
+    const before = room.session.players.get(a.sessionId)!;
+    expect(saved.snapshot.players).toHaveLength(1); // only characters with a token are kept
+    await a.leave();
+    await b.leave();
+    await room.disconnect();
+
+    // "Restart": a new room built from the save, with the same id.
+    await matchMaker.createRoom(ROOM_NAME, { restore: saved });
+    const back = await new Client(endpoint).joinById(saved.roomId, { name: "Whatever", token });
+    await waitFor(() => back.state.players?.get(back.sessionId) !== undefined);
+    const me = back.state.players.get(back.sessionId);
+    expect(me.name).toBe("Saved");
+    expect(me.x).toBeCloseTo(before.x, 1);
+    expect(me.z).toBeCloseTo(before.z, 1);
+    expect(me.health).toBeCloseTo(before.health, 1); // restored, not reset to 40%
+
+    // Someone else gets a fresh character, not the saved one.
+    const other = await new Client(endpoint).joinById(saved.roomId, { name: "New", token: "another-token-0123456789" });
+    await waitFor(() => other.state.players?.get(other.sessionId) !== undefined);
+    expect(other.state.players.get(other.sessionId).name).toBe("New");
+    await back.leave();
+    await other.leave();
   });
 });
