@@ -14,7 +14,14 @@ export interface RemotePlayer {
   heading: number;
   health: number;
   phase: "alive" | "terminal" | "dead";
+  posture: "crawl" | "standingUp" | "walk" | "lyingDown";
   inShade: boolean;
+}
+
+export interface RemoteScorpion {
+  x: number;
+  z: number;
+  present: boolean;
 }
 
 export interface RemoteWell {
@@ -34,6 +41,7 @@ export interface RoomState {
   players: Map<string, RemotePlayer>;
   wells: Map<string, RemoteWell>;
   markers: Map<string, RemoteMarker>;
+  scorpions: Map<string, RemoteScorpion>;
 }
 
 export async function joinDesert(name: string): Promise<Room<any, RoomState>> {

@@ -30,6 +30,8 @@ const OPEN: GreyboxMap = {
   rocks: [{ id: "r", x: 0, z: 0, radius: 3, height: 4 }],
   spawns: [{ x: -30, z: -30 }, { x: -20, z: -30 }],
   wellSites: [{ x: 30, z: 30 }],
+  scorpions: [],
+  boundaryBand: 5,
 };
 
 function openSession() {

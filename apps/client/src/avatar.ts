@@ -33,6 +33,19 @@ export class Avatar {
   }
 
   private twitchTime = 0;
+  private slappedTime = 0;
+  private slapTime = 0;
+  private upright = 0;
+
+  /** Comic reaction when this character gets slapped. */
+  slapped(): void {
+    this.slappedTime = 0.8;
+  }
+
+  /** The slapping arm swing. */
+  slapping(): void {
+    this.slapTime = 0.4;
+  }
 
   /** A tiny involuntary reaction while dying (keyboard or mouse input). */
   twitch(): void {
@@ -43,24 +56,45 @@ export class Avatar {
    * speed: metres per second actually travelled, drives the crawl cycle.
    * phase: "alive" | "terminal" | "dead". health: 0-100, weakens dying breath.
    */
-  update(dt: number, speed: number, phase: string, health: number): void {
+  update(dt: number, speed: number, phase: string, health: number, posture = "crawl"): void {
     this.object.visible = phase !== "dead"; // the skeleton marker takes over
     if (phase === "dead") return;
     const moving = phase === "alive" && speed > 0.05;
     const dying = phase === "terminal";
     this.breath += dt * (dying ? 1.4 : 2.2 + speed * 2);
     this.twitchTime = Math.max(0, this.twitchTime - dt);
+    this.slappedTime = Math.max(0, this.slappedTime - dt);
+    this.slapTime = Math.max(0, this.slapTime - dt);
     const twitch = Math.sin(this.twitchTime * 25) * this.twitchTime * 2;
+    // Standing up and getting down are slow: blend over the transition.
+    const wantUp = posture === "walk" || posture === "standingUp" ? 1 : 0;
+    const rate = posture === "standingUp" ? 1 / 3 : 1 / 2;
+    this.upright += Math.sign(wantUp - this.upright) * Math.min(Math.abs(wantUp - this.upright), dt * rate);
     if (this.mixer) {
-      this.play(dying ? "dying_breathe" : moving ? "crawl" : "crawl_idle");
+      const clip = dying
+        ? "dying_breathe"
+        : this.slappedTime > 0
+          ? "slapped"
+          : this.slapTime > 0
+            ? "slap"
+            : posture === "standingUp"
+              ? "stand_up"
+              : posture === "lyingDown"
+                ? "lie_down"
+                : posture === "walk"
+                  ? moving ? "walk" : "walk_idle"
+                  : moving ? "crawl" : "crawl_idle";
+      this.play(clip);
       this.mixer.update(dt);
     } else if (this.rig) {
       if (dying) {
-        poseLying(this.rig, this.breath, Math.max(0.15, health / 10), twitch);
+        poseLying(this.rig, this.breath, Math.max(0.15, health / 10), twitch + 3 * Math.sin(this.slappedTime * 30) * this.slappedTime);
       } else {
-        if (moving) this.phase += dt * speed * 7;
-        this.rig.body.rotation.set(0, 0, 0);
-        poseCrawler(this.rig, this.phase, this.breath);
+        if (moving) this.phase += dt * speed * (this.upright > 0.5 ? 5 : 7);
+        poseCrawler(this.rig, this.phase, this.breath, this.upright);
+        // Slapped: a comic head-spinning wobble. Slapping: one arm swings.
+        this.rig.body.rotation.y = Math.sin(this.slappedTime * 28) * this.slappedTime * 0.9;
+        if (this.slapTime > 0) this.rig.armR.rotation.x = -2.2 * Math.sin((this.slapTime / 0.4) * Math.PI);
       }
     }
   }

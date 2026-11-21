@@ -4,3 +4,4 @@ export * from "./sun.ts";
 export * from "./shade.ts";
 export * from "./movement.ts";
 export * from "./session.ts";
+export * from "./routes.ts";

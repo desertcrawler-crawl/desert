@@ -29,6 +29,10 @@ export interface GreyboxMap {
   spawns: Site[];
   /** Authored places where a well may appear. Test positions only. */
   wellSites: Site[];
+  /** Fixed scorpion guard posts near the boundary. Test positions only; the real count is open. */
+  scorpions: Site[];
+  /** Width of the outer band with no wells and no first-entry spawns, m. */
+  boundaryBand: number;
 }
 
 export const GREYBOX: GreyboxMap = {
@@ -50,6 +54,9 @@ export const GREYBOX: GreyboxMap = {
     { x: -8, z: 6 },
     { x: 6, z: -9 },
     { x: -6, z: -9 },
+    { x: -30, z: -45 },
+    { x: 40, z: 40 },
+    { x: -45, z: 30 },
   ],
   wellSites: [
     { x: 22, z: -30 },
@@ -65,6 +72,19 @@ export const GREYBOX: GreyboxMap = {
     { x: 10, z: -74 },
     { x: 76, z: -72 },
   ],
+  scorpions: [
+    { x: 0, z: -92 },
+    { x: 60, z: -91 },
+    { x: -60, z: -91 },
+    { x: 92, z: 0 },
+    { x: -92, z: 0 },
+    { x: 0, z: 92 },
+    { x: 60, z: 91 },
+    { x: -60, z: 91 },
+    { x: 91, z: -55 },
+    { x: -91, z: 55 },
+  ],
+  boundaryBand: 15,
 };
 
 /**

@@ -24,7 +24,7 @@ export interface ArtSlot {
 export const ART_SLOTS = {
   crawler: {
     file: "crawler.glb",
-    clips: ["crawl", "crawl_idle", "walk", "walk_idle", "stand_up", "lie_down", "dying_breathe", "slapped"],
+    clips: ["crawl", "crawl_idle", "walk", "walk_idle", "stand_up", "lie_down", "dying_breathe", "slap", "slapped"],
     note: "The stranded old man: long white hair and beard, rags, very thin, hunched. About 1.8 m tall standing.",
   },
   well: {
@@ -41,6 +41,11 @@ export const ART_SLOTS = {
     file: "cross.glb",
     clips: [],
     note: "Wooden grave cross, about 1.1 m tall. The player's name is drawn above it by the game.",
+  },
+  scorpion: {
+    file: "scorpion.glb",
+    clips: ["idle", "sting"],
+    note: "Boundary guardian, about 0.8 m long, clearly visible from a distance. Disappears after stinging and returns 10 s later.",
   },
   rock: {
     file: "rock.glb",

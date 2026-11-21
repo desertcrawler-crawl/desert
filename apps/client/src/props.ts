@@ -1,13 +1,13 @@
 import * as THREE from "three";
 import { terrainHeight } from "@desert/sim";
 import { loadArt } from "./art/loader.ts";
-import { buildCross, buildSkeleton, buildWell } from "./art/placeholders.ts";
+import { buildCross, buildScorpion, buildSkeleton, buildWell } from "./art/placeholders.ts";
 import { makeLabel } from "./avatar.ts";
 
 type Template = () => THREE.Object3D;
 
 /** Use the artist's model for a slot when there is one, otherwise the placeholder. */
-async function template(slot: "well" | "skeleton" | "cross", fallback: Template): Promise<Template> {
+async function template(slot: "well" | "skeleton" | "cross" | "scorpion", fallback: Template): Promise<Template> {
   const art = await loadArt(slot);
   return art ? () => art.scene.clone() : fallback;
 }
@@ -16,15 +16,25 @@ export interface PropTemplates {
   well: Template;
   skeleton: Template;
   cross: Template;
+  scorpion: Template;
 }
 
 export async function loadPropTemplates(): Promise<PropTemplates> {
-  const [well, skeleton, cross] = await Promise.all([
+  const [well, skeleton, cross, scorpion] = await Promise.all([
     template("well", buildWell),
     template("skeleton", buildSkeleton),
     template("cross", buildCross),
+    template("scorpion", buildScorpion),
   ]);
-  return { well, skeleton, cross };
+  return { well, skeleton, cross, scorpion };
+}
+
+/** A scorpion at its post, facing the middle of the map so it looks at approaching players. */
+export function placeScorpion(t: PropTemplates, x: number, z: number): THREE.Object3D {
+  const o = t.scorpion();
+  o.position.set(x, terrainHeight(x, z), z);
+  o.rotation.y = Math.atan2(-x, -z); // +Z model forward turned towards (0, 0)
+  return o;
 }
 
 export function placeWell(t: PropTemplates, x: number, z: number): THREE.Object3D {
@@ -39,6 +49,7 @@ export function placeMarker(t: PropTemplates, name: string, x: number, z: number
   g.position.set(x, terrainHeight(x, z), z);
   g.rotation.y = Math.PI - heading;
   const skeleton = t.skeleton();
+  skeleton.name = "skeleton";
   g.add(skeleton);
   const cross = t.cross();
   cross.position.set(0.7, 0, 0.6);
@@ -86,4 +97,21 @@ export class Sparkle {
     }
     return true;
   }
+}
+
+/**
+ * Slapped skeleton: the skull and bones bounce with a clatter, but the skeleton
+ * stays where it is and the cross and name are untouched.
+ */
+export function bounceSkeleton(marker: THREE.Object3D, t: number): void {
+  const skeleton = marker.getObjectByName("skeleton");
+  if (!skeleton) return;
+  const k = Math.max(0, t);
+  const hop = Math.abs(Math.sin(k * 22)) * k * 0.5;
+  const skull = skeleton.getObjectByName("skull");
+  skeleton.children.forEach((c, i) => {
+    const base = (c.userData.baseY ??= c.position.y) as number;
+    const jitter = c === skull ? hop * 1.6 : hop * (0.3 + ((i * 37) % 10) / 20);
+    c.position.y = base + jitter;
+  });
 }

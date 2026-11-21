@@ -19,7 +19,7 @@
 
     <div id="hud" hidden>
       <div id="status"></div>
-      <div class="help">W/S crawl forward/back · A/D turn · drag mouse to look · wheel to zoom</div>
+      <div class="help">W/S forward/back · A/D turn · Space get up and walk · C or Ctrl get down and crawl · F slap · Enter chat · drag mouse to look · wheel to zoom</div>
     </div>
 
     <canvas id="minimap" hidden></canvas>
@@ -27,6 +27,11 @@
     <div id="health" hidden>
       <div class="bar"><div class="fill"></div></div>
       <div class="label"></div>
+    </div>
+
+    <div id="chat" hidden>
+      <div class="log"></div>
+      <input maxlength="200" placeholder="Press Enter to chat" />
     </div>
 
     <div id="dying" class="notice" hidden>You collapse onto your back. There is no getting up now.</div>

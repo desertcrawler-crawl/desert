@@ -4,9 +4,18 @@ import { loadArt } from "./art/loader.ts";
 import { Avatar } from "./avatar.ts";
 import { FollowCamera } from "./camera.ts";
 import { drawHealth, Minimap } from "./hud.ts";
+import { ChatBox, type ChatLine } from "./chat.ts";
 import { KeyboardInput } from "./input.ts";
 import { joinDesert } from "./net.ts";
-import { loadPropTemplates, placeMarker, placeWell, Sparkle, type PropTemplates } from "./props.ts";
+import {
+  bounceSkeleton,
+  loadPropTemplates,
+  placeMarker,
+  placeScorpion,
+  placeWell,
+  Sparkle,
+  type PropTemplates,
+} from "./props.ts";
 import { buildWorld, SUN_DIRECTION } from "./world.ts";
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
@@ -23,6 +32,7 @@ const healthLabel = $<HTMLDivElement>("#health .label");
 const dyingNotice = $<HTMLDivElement>("#dying");
 const deadPanel = $<HTMLDivElement>("#dead");
 const rejoinButton = $<HTMLButtonElement>("#rejoin");
+const chatRoot = $<HTMLDivElement>("#chat");
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -60,7 +70,7 @@ joinForm.addEventListener("submit", async (e) => {
   try {
     const [room, crawlerArt, props] = await Promise.all([joinDesert(name), loadArt("crawler"), loadPropTemplates()]);
     joinForm.hidden = true;
-    for (const el of [hud, minimapCanvas, healthBox]) el.hidden = false;
+    for (const el of [hud, minimapCanvas, healthBox, chatRoot]) el.hidden = false;
     start(room, crawlerArt, props);
   } catch (err) {
     console.error(err);
@@ -85,19 +95,35 @@ function start(
   const shown = new Map<string, Shown>();
   const wells = new Map<string, THREE.Object3D>();
   const markers = new Map<string, THREE.Object3D>();
+  const scorpions = new Map<string, THREE.Object3D>();
   const sparkles: Sparkle[] = [];
+  const skeletonBounces = new Map<string, number>();
   const minimap = new Minimap(minimapCanvas);
   let firstFrame = true;
 
   const me = () => room.state.players?.get(room.sessionId);
-  new KeyboardInput((input: MoveInput) => {
-    room.send("input", input);
+  const twitchIfDying = () => {
     // While dying, input only causes a tiny involuntary reaction.
-    if (me()?.phase === "terminal" && (input.forward || input.turn)) shown.get(room.sessionId)?.avatar.twitch();
-  });
-  canvas.addEventListener("pointerdown", () => {
     if (me()?.phase === "terminal") shown.get(room.sessionId)?.avatar.twitch();
+  };
+  new KeyboardInput({
+    move: (input: MoveInput) => room.send("input", input),
+    posture: (want) => room.send("posture", want),
+    slap: () => room.send("slap"),
+    anyInput: twitchIfDying,
   });
+  const chat = new ChatBox(chatRoot, (text) => room.send("chat", text));
+  room.onMessage("chat", (line: ChatLine) => chat.add(line));
+  room.onMessage("chatHistory", (lines: ChatLine[]) => lines.forEach((l) => chat.add(l)));
+  room.onMessage("fx", (e: { type: string; from?: string; playerId?: string; target?: { kind: string; id: string } }) => {
+    if (e.type === "slap" && e.target) {
+      if (e.from) shown.get(e.from)?.avatar.slapping();
+      if (e.target.kind === "player") shown.get(e.target.id)?.avatar.slapped();
+      else skeletonBounces.set(e.target.id, 0.9);
+    }
+    if (e.type === "sting" && e.playerId) shown.get(e.playerId)?.avatar.slapped();
+  });
+  canvas.addEventListener("pointerdown", twitchIfDying);
   rejoinButton.addEventListener("click", () => room.send("rejoin"));
   room.onLeave(() => {
     status.textContent = "Disconnected from the desert. Reload to play again.";
@@ -110,7 +136,7 @@ function start(
     const dt = Math.min(clock.getDelta(), 0.1);
     const st = room.state;
     // Collections arrive with the first full state; skip frames until then.
-    if (!st.players || !st.wells || !st.markers) {
+    if (!st.players || !st.wells || !st.markers || !st.scorpions) {
       renderer.render(scene, follow.camera);
       return;
     }
@@ -131,7 +157,7 @@ function start(
       s.avatar.object.position.copy(s.pos);
       // Models face +Z (glTF standard). Heading 0 = north = -Z, growing clockwise from above.
       s.avatar.object.rotation.y = Math.PI - s.heading;
-      s.avatar.update(dt, speed, p.phase, p.health);
+      s.avatar.update(dt, speed, p.phase, p.health, p.posture);
     });
     for (const [id, s] of shown) {
       if (!st.players.has(id)) {
@@ -168,6 +194,23 @@ function start(
       }
     });
     for (let i = sparkles.length - 1; i >= 0; i--) if (!sparkles[i]!.update(dt)) sparkles.splice(i, 1);
+    for (const [id, t] of skeletonBounces) {
+      const o = markers.get(id);
+      if (o) bounceSkeleton(o, t);
+      if (t <= 0) skeletonBounces.delete(id);
+      else skeletonBounces.set(id, t - dt);
+    }
+
+    // Scorpions: visible at their posts; gone for 10 s after stinging.
+    st.scorpions.forEach((sc, id) => {
+      let o = scorpions.get(id);
+      if (!o) {
+        o = placeScorpion(props, sc.x, sc.z);
+        scene.add(o);
+        scorpions.set(id, o);
+      }
+      o.visible = sc.present;
+    });
     firstFrame = false;
 
     // HUD.

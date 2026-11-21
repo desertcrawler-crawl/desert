@@ -59,14 +59,15 @@ describe("desert room", () => {
   });
 
   it("sends player 31 to a new session", async () => {
-    const clients = [];
-    for (let i = 0; i < TUNING.session.maxPlayers; i++) {
-      clients.push(await new Client(endpoint).joinOrCreate(ROOM_NAME, { name: `p${i}` }));
+    // Fill one fresh session to the cap.
+    const first = await new Client(endpoint).create(ROOM_NAME, { name: "p0" });
+    const clients = [first];
+    for (let i = 1; i < TUNING.session.maxPlayers; i++) {
+      clients.push(await new Client(endpoint).joinById(first.roomId, { name: `p${i}` }));
     }
-    const roomIds = new Set(clients.map((c) => c.roomId));
-    expect(roomIds.size).toBe(1);
+    await expect(new Client(endpoint).joinById(first.roomId, { name: "p31" })).rejects.toThrow();
     const extra = await new Client(endpoint).joinOrCreate(ROOM_NAME, { name: "p31" });
-    expect(roomIds.has(extra.roomId)).toBe(false);
+    expect(extra.roomId).not.toBe(first.roomId);
     await Promise.all([...clients, extra].map((c) => c.leave()));
   });
 });
@@ -89,6 +90,25 @@ describe("survival over the network", () => {
     await new Promise((r) => setTimeout(r, 150));
     expect(a.state.players.get(a.sessionId).health).toBeLessThan(TUNING.health.firstEntry + 0.01);
     await a.leave();
+  });
+});
+
+describe("chat", () => {
+  it("reaches everyone in the session, rate-limited and length-limited", async () => {
+    const a = await new Client(endpoint).joinOrCreate(ROOM_NAME, { name: "Ada" });
+    const b = await new Client(endpoint).joinOrCreate(ROOM_NAME, { name: "Bo" });
+    const got: { name: string; text: string }[] = [];
+    b.onMessage("chat", (m: { name: string; text: string }) => got.push(m));
+    a.onMessage("chat", () => {});
+    a.send("chat", "water over here?" + "!".repeat(500));
+    a.send("chat", "spam"); // too soon, dropped
+    await waitFor(() => got.length >= 1);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(got).toHaveLength(1);
+    expect(got[0]!.name).toBe("Ada");
+    expect(got[0]!.text.length).toBe(TUNING.chat.maxLength);
+    await a.leave();
+    await b.leave();
   });
 });
 

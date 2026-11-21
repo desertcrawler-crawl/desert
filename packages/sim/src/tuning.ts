@@ -57,6 +57,47 @@ export const TUNING = {
     minDistanceFromPlayers: 10,
   },
 
+  posture: {
+    /** Seconds to get up from crawling to walking. Spec: slow and physically demanding; value not in spec. */
+    standUpSeconds: 3,
+    /** Seconds to get back down to crawling. Not in spec; placeholder. */
+    lieDownSeconds: 2,
+  },
+
+  slap: {
+    /** All slap numbers are open in the spec; these are placeholders. Skeleton slaps share them (spec proposal). */
+    range: 1.6,
+    /** Target must be within this angle either side of where you face, degrees. Not in spec. */
+    coneDeg: 70,
+    cooldownSeconds: 3,
+    /** Health the slapper pays, percentage points. The recipient loses nothing (agreed core rule). */
+    cost: 1,
+  },
+
+  scorpions: {
+    /** Distance at which a scorpion stings. Open in spec; placeholder. */
+    triggerRange: 2.5,
+    /** Sting damage, percentage points. Open in spec; placeholder. Never kills instantly (dying still lasts 60 s). */
+    damage: 15,
+    /** Agreed core rule: a replacement appears at the same spot 10 s after a sting. */
+    respawnSeconds: 10,
+  },
+
+  fairness: {
+    /** First-water target for a new player (spec working proposal): reachable crawling in about 3 minutes... */
+    maxFirstWaterSeconds: 180,
+    /** ...arriving with about 20% health or more. */
+    minArrivalHealth: 20,
+    /** Size of a pathfinding cell for route checks, m. */
+    routeCellSize: 1,
+  },
+
+  chat: {
+    maxLength: 200,
+    /** Minimum seconds between messages from one player (operational safeguard). */
+    minIntervalSeconds: 1,
+  },
+
   shade: {
     /** Height above the ground at which a body counts as shaded, m (proposal: one point at the body centre). */
     bodyHeight: 0.3,
@@ -67,5 +108,9 @@ export const TUNING = {
   session: {
     /** Agreed core rule: at most 30 simultaneous players per session. */
     maxPlayers: 30,
+    /** A dropped connection keeps its living character this long, s. Open in spec; not in spec; placeholder. */
+    reconnectSeconds: 20,
+    /** An empty session (and its skeletons) is kept this long, then retired, minutes (spec working proposal: 10). */
+    emptyGraceMinutes: 10,
   },
 } as const;

@@ -14,6 +14,8 @@ export const PlayerState = schema(
     health: t.float32(),
     /** "alive" | "terminal" | "dead" */
     phase: t.string(),
+    /** "crawl" | "standingUp" | "walk" | "lyingDown" */
+    posture: t.string(),
     inShade: t.boolean(),
   },
   "PlayerState",
@@ -30,11 +32,16 @@ export const MarkerState = schema(
 );
 export type MarkerState = SchemaType<typeof MarkerState>;
 
+/** A boundary guardian. `present` is false during the 10 s after it stings. */
+export const ScorpionState = schema({ x: t.float32(), z: t.float32(), present: t.boolean() }, "ScorpionState");
+export type ScorpionState = SchemaType<typeof ScorpionState>;
+
 export const DesertState = schema(
   {
     players: t.map(PlayerState),
     wells: t.map(WellState),
     markers: t.map(MarkerState),
+    scorpions: t.map(ScorpionState),
   },
   "DesertState",
 );

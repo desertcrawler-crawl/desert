@@ -29,11 +29,17 @@ export function sanitizeInput(raw: unknown): MoveInput {
  * Advance one body by dt seconds. Pure and deterministic, so the server
  * (authoritative) and the browser (prediction, later) can run the same code.
  */
-export function stepBody(body: Body, input: MoveInput, dt: number, map: GreyboxMap = GREYBOX): Body {
+export function stepBody(
+  body: Body,
+  input: MoveInput,
+  dt: number,
+  map: GreyboxMap = GREYBOX,
+  forwardSpeed: number = TUNING.movement.crawlSpeed,
+): Body {
   const m = TUNING.movement;
   const heading = wrapAngle(body.heading + input.turn * ((m.turnRateDeg * Math.PI) / 180) * dt);
 
-  const speed = input.forward > 0 ? m.crawlSpeed : input.forward < 0 ? -m.crawlSpeed * m.reverseFactor : 0;
+  const speed = input.forward > 0 ? forwardSpeed : input.forward < 0 ? -forwardSpeed * m.reverseFactor : 0;
   let x = body.x + Math.sin(heading) * speed * dt;
   let z = body.z - Math.cos(heading) * speed * dt;
 

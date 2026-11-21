@@ -2,7 +2,7 @@
 
 A browser-based multiplayer survival game: crawl through a hot desert, find single-use water wells before other players do, and try not to die. See the design spec and the architecture proposal for the full picture.
 
-**Status: milestone M1 (greybox survival loop).** On a small placeholder map you start at 40% health, lose health faster in the sun than in the shade of rocks, drink automatically from single-use wells (each one serves exactly one player), and at 10% collapse into an irreversible dying state that lasts at least 60 seconds. Death leaves a skeleton and a named cross for the rest of the session, and you can rejoin at the same spot at 100%. A north-up minimap shows you, every other player and every active well.
+**Status: milestone M2 (complete mechanics on the greybox map).** Every confirmed rule in the spec now works on a small placeholder map: crawling and slow walking with slow, effortful posture changes; health that drains by sun, shade and posture; single-use wells with fair, route-checked first spawns; slapping players and skeletons; boundary scorpions that sting once and return after 10 seconds; the irreversible dying state, skeletons and crosses, rejoining where you died; session chat; and a minimap. All balance numbers are placeholders in `packages/sim/src/tuning.ts`.
 
 To try dying without waiting, start the server with low starting health: `DESERT_START_HEALTH=12 pnpm dev`.
 
@@ -17,7 +17,7 @@ pnpm dev
 
 Then open http://localhost:5173 in two browser tabs, enter a name in each, and press Play. Both crawlers are in the same desert.
 
-Controls (placeholders until the M1 control test): **W/S** crawl forward/back, **A/D** turn, **drag the mouse** to look around, **mouse wheel** to zoom.
+Controls (placeholders until the controls are confirmed): **W/S** forward/back, **A/D** turn, **Space** get up and walk, **C** or **Ctrl** get down and crawl, **F** slap, **Enter** chat, **drag the mouse** to look around, **mouse wheel** to zoom. (Holding Ctrl while pressing W closes the tab in most browsers, which is why C also works.)
 
 ## Other commands
 

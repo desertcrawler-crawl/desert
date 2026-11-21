@@ -76,17 +76,22 @@ export function buildCrawler(): CrawlerRig {
   return { root, body, armL, armR, legL, legR };
 }
 
-/** Slow, laboured placeholder crawl cycle. `phase` advances only while moving. */
-export function poseCrawler(rig: CrawlerRig, phase: number, breath: number): void {
+/**
+ * Slow, laboured placeholder movement. `phase` advances only while moving.
+ * `upright` blends from crawling (0) to a hunched, unsteady stand (1).
+ */
+export function poseCrawler(rig: CrawlerRig, phase: number, breath: number, upright = 0): void {
   const s = Math.sin(phase);
-  rig.armL.rotation.x = 0.35 * s;
-  rig.armR.rotation.x = -0.35 * s;
-  rig.legL.rotation.x = -0.9 - 0.25 * s;
-  rig.legR.rotation.x = -0.9 + 0.25 * s;
-  rig.body.rotation.z = 0.06 * s;
-  // Heavy breathing, always.
-  rig.body.position.y = 0.5 + 0.012 * Math.sin(breath);
+  const u = upright;
+  const tilt = 1.15 * u; // torso pitches up; never fully straight
+  rig.body.rotation.set(tilt, 0, 0.06 * s + 0.05 * u * Math.sin(phase * 0.5)); // swaying
+  rig.body.position.y = 0.5 + 0.32 * u + 0.012 * Math.sin(breath);
   rig.body.scale.y = 1 + 0.03 * Math.sin(breath);
+  // Crawling: arms reach, legs drag. Upright: arms hang loosely, bent knees drag.
+  rig.armL.rotation.x = (1 - u) * 0.35 * s + u * (-tilt + 0.15 * s);
+  rig.armR.rotation.x = (1 - u) * -0.35 * s + u * (-tilt - 0.15 * s);
+  rig.legL.rotation.x = (1 - u) * (-0.9 - 0.25 * s) + u * (-tilt + 0.25 * s);
+  rig.legR.rotation.x = (1 - u) * (-0.9 + 0.25 * s) + u * (-tilt - 0.25 * s);
 }
 
 /**
@@ -170,6 +175,47 @@ export function buildCross(): THREE.Object3D {
   bar.position.y = 0.82;
   post.castShadow = bar.castShadow = true;
   g.add(post, bar);
+  return g;
+}
+
+/** A desert scorpion, about 0.8 m long, facing +Z, with its tail raised. */
+export function buildScorpion(): THREE.Object3D {
+  const g = new THREE.Group();
+  const shell = flat(0x3a2414);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.45), shell);
+  body.position.set(0, 0.1, 0);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.1, 0.14), shell);
+  head.position.set(0, 0.1, 0.28);
+  g.add(body, head);
+  for (const side of [-1, 1]) {
+    const claw = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.25, 4), shell);
+    claw.rotation.x = Math.PI / 2;
+    claw.position.set(side * 0.2, 0.1, 0.45);
+    g.add(claw);
+    for (let i = 0; i < 3; i++) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.03, 0.03), shell);
+      leg.position.set(side * 0.24, 0.05, 0.12 - i * 0.12);
+      leg.rotation.z = side * -0.4;
+      g.add(leg);
+    }
+  }
+  let prev: THREE.Object3D = g;
+  let y = 0.12;
+  let z = -0.25;
+  for (let i = 0; i < 4; i++) {
+    const seg = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.12), shell);
+    y += 0.09;
+    z -= 0.03 - i * 0.04;
+    seg.position.set(0, y, z);
+    g.add(seg);
+    prev = seg;
+  }
+  const sting = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.14, 4), flat(0xb03a1a));
+  sting.position.set(0, y + 0.06, z + 0.08);
+  sting.rotation.x = 1.2;
+  g.add(sting);
+  void prev;
+  g.traverse((o) => ((o as THREE.Mesh).isMesh && (o.castShadow = true)));
   return g;
 }
 
