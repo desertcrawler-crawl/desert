@@ -1,6 +1,8 @@
+import * as THREE from 'three';
 import sharp from 'sharp';
 import fs from 'fs';
 import { io, fit, materials, save, hex, DL } from './lib.mjs';
+import { transformMesh } from '@gltf-transform/functions';
 const Q = `${DL}/t1/quaternius`, MK = `${Q}/stylized-nature-megakit/glTF`;
 const K = `${DL}/kenney.nl`;
 const KG = `${K}/kenney_graveyardkit_3/Models/GLTF format`, KN = `${K}/kenney_natureKit_2.1/Models/GLTF format`, KF = `${K}/fantasy-town-kit-1.0/Models/GLTF format`;
@@ -48,25 +50,12 @@ const KG = `${K}/kenney_graveyardkit_3/Models/GLTF format`, KN = `${K}/kenney_na
   fit(d, { height: 3.0 });
   await save(d, 'ruin_column');
 }
-{
-  const d = await io.read(`${KF}/wallBroken.glb`);
-  materials(d, { stone: 0xc9996a, wood: 0x7a5a3c });
-  fit(d, { height: 2.6 });
-  await save(d, 'ruin_wall');
-}
-// skeleton, lying on its back in the sand
-{
-  const d = await io.read(`${KG}/skeleton.glb`);
-  materials(d, { wax: 0xe6dcc2, woodDark: 0x5a4632 });
-  fit(d, { rotX: -Math.PI / 2, width: 1.7 });
-  await save(d, 'skeleton');
-}
 // wooden grave cross
 {
   const d = await io.read(`${KG}/crossWood.glb`);
   materials(d, { wood: 0x8a6a48 });
   // Drop the stone plinth: a bare wooden cross stuck in the sand.
   for (const mesh of d.getRoot().listMeshes()) for (const p of mesh.listPrimitives()) if (p.getMaterial()?.getName() === 'stone') p.dispose();
-  fit(d, { height: 1.3 });
+  fit(d, { height: 1.1 });
   await save(d, 'cross');
 }

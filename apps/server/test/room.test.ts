@@ -51,23 +51,65 @@ describe("desert room", () => {
     a.send("input", { forward: 1, turn: 0 });
     await waitFor(() => z0 - me().z > 0.2);
     // A forged "position" message is rejected: the server has no handler for it and drops that client.
+    const x0 = me().x;
     a.send("position", { x: 999, z: 999 });
     a.send("input", { forward: 0, turn: 0 });
     await new Promise((r) => setTimeout(r, 200));
-    expect(Math.abs(me().x)).toBeLessThan(100);
+    expect(Math.abs(me().x - x0)).toBeLessThan(1);
     await a.leave();
   });
 
   it("sends player 31 to a new session", async () => {
-    const clients = [];
-    for (let i = 0; i < TUNING.session.maxPlayers; i++) {
-      clients.push(await new Client(endpoint).joinOrCreate(ROOM_NAME, { name: `p${i}` }));
+    // Fill one fresh session to the cap.
+    const first = await new Client(endpoint).create(ROOM_NAME, { name: "p0" });
+    const clients = [first];
+    for (let i = 1; i < TUNING.session.maxPlayers; i++) {
+      clients.push(await new Client(endpoint).joinById(first.roomId, { name: `p${i}` }));
     }
-    const roomIds = new Set(clients.map((c) => c.roomId));
-    expect(roomIds.size).toBe(1);
+    await expect(new Client(endpoint).joinById(first.roomId, { name: "p31" })).rejects.toThrow();
     const extra = await new Client(endpoint).joinOrCreate(ROOM_NAME, { name: "p31" });
-    expect(roomIds.has(extra.roomId)).toBe(false);
+    expect(extra.roomId).not.toBe(first.roomId);
     await Promise.all([...clients, extra].map((c) => c.leave()));
+  });
+});
+
+describe("survival over the network", () => {
+  it("sends health, phase and wells; a new player starts at 40% with water in the world", async () => {
+    const a = await new Client(endpoint).joinOrCreate(ROOM_NAME, { name: "Thirsty" });
+    await waitFor(() => a.state.players?.get(a.sessionId) !== undefined && a.state.wells?.size > 0);
+    const me = a.state.players.get(a.sessionId);
+    expect(me.phase).toBe("alive");
+    expect(me.health).toBeLessThanOrEqual(TUNING.health.firstEntry);
+    expect(me.health).toBeGreaterThan(TUNING.health.firstEntry - 1);
+    await a.leave();
+  });
+
+  it("ignores a rejoin request from a player who is not dead", async () => {
+    const a = await new Client(endpoint).joinOrCreate(ROOM_NAME, { name: "Alive" });
+    await waitFor(() => a.state.players?.get(a.sessionId) !== undefined);
+    a.send("rejoin");
+    await new Promise((r) => setTimeout(r, 150));
+    expect(a.state.players.get(a.sessionId).health).toBeLessThan(TUNING.health.firstEntry + 0.01);
+    await a.leave();
+  });
+});
+
+describe("chat", () => {
+  it("reaches everyone in the session, rate-limited and length-limited", async () => {
+    const a = await new Client(endpoint).joinOrCreate(ROOM_NAME, { name: "Ada" });
+    const b = await new Client(endpoint).joinOrCreate(ROOM_NAME, { name: "Bo" });
+    const got: { name: string; text: string }[] = [];
+    b.onMessage("chat", (m: { name: string; text: string }) => got.push(m));
+    a.onMessage("chat", () => {});
+    a.send("chat", "water over here?" + "!".repeat(500));
+    a.send("chat", "spam"); // too soon, dropped
+    await waitFor(() => got.length >= 1);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(got).toHaveLength(1);
+    expect(got[0]!.name).toBe("Ada");
+    expect(got[0]!.text.length).toBe(TUNING.chat.maxLength);
+    await a.leave();
+    await b.leave();
   });
 });
 

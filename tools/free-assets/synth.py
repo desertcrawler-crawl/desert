@@ -16,8 +16,8 @@ def loopify(x, fade):
     f = int(fade * SR); w = np.linspace(0, 1, f)
     y = x[f:].copy(); y[-f:] = y[-f:] * (1 - w) + x[:f] * w
     return y
-def write(name, chans, q=4):
-    a = np.stack(chans, 1); a = a / np.max(np.abs(a)) * 0.89
+def write(name, chans, q=4, peak=0.89):
+    a = np.stack(chans, 1); a = a / np.max(np.abs(a)) * peak
     raw = (a * 32767).astype('<i2').tobytes()
     subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-f', 's16le', '-ar', str(SR), '-ac', str(a.shape[1]), '-i', '-', '-c:a', 'libvorbis', '-q:a', str(q), f'{OUT}/{name}.ogg'], input=raw, check=True)
     print(name, f'{len(a)/SR:.1f}s')
@@ -36,14 +36,19 @@ def wind_channel(n, seed_shift):
     nz = lambda v: v / (np.std(v) + 1e-9)
     return nz(body) * 1.0 + nz(whistle) * 0.55 * (0.2 + gust) + nz(hiss) * 0.12 * (0.3 + gust)
 
-n = SR * 46
+n = SR * 36
 wl = wind_channel(n, 0); wr = wind_channel(n, 1)
-write('wind_loop', [loopify(wl, 6), loopify(wr, 6)])
+write('wind', [loopify(wl, 6), loopify(wr, 6)])
 
 # One gust to layer on top now and then.
-n = SR * 7; env = np.sin(np.linspace(0, np.pi, n)) ** 2.5
-g = [ (lp(np.cumsum(rng.standard_normal(n)) - lp(np.cumsum(rng.standard_normal(n)), 0.5, 1), 600) / 300 + bp(rng.standard_normal(n), 600, 1800) * 2) * env for _ in range(2)]
-write('wind_gust', g)
+for k in range(3):
+    n = int(SR * rng.uniform(3, 5)); env = np.sin(np.linspace(0, np.pi, n)) ** 2.5
+    def ch():
+        b = np.cumsum(rng.standard_normal(n)); b = lp(b - lp(b, 0.5, 1), 600); b /= np.std(b)
+        w = bp(rng.standard_normal(n), 600, 1800); w /= np.std(w)
+        s = bp(rng.standard_normal(n), 3000, 8000); s /= np.std(s)
+        return (b + w * 0.6 + s * 0.15 * env) * env
+    write('gust' if k == 0 else f'gust_{k + 1}', [ch(), ch()])
 
 # Laboured breathing of an exhausted old man: in through a dry throat, slow rasping out.
 def breath(dur_in, dur_out, pause, rasp):
@@ -59,13 +64,18 @@ def breath(dur_in, dur_out, pause, rasp):
     exh = (bp(w[ni:], 350, 1600) * 1.0 + voice) * eout
     return np.concatenate([inh, exh, np.zeros(npz)])
 
-parts = []
-for k in range(6):
-    parts.append(breath(rng.uniform(0.9, 1.25), rng.uniform(1.4, 1.9), rng.uniform(0.5, 1.0), rng.uniform(0.25, 0.6)))
-b = np.concatenate(parts); b = lp(b, 6000)
-write('breathing_loop', [b * 0.95 + np.roll(b, 40) * 0.05, b])
-
-# Slower, weaker, rattling breaths for the dying state.
-parts = [breath(rng.uniform(1.2, 1.6), rng.uniform(2.0, 2.6), rng.uniform(1.2, 2.0), rng.uniform(0.7, 1.0)) * rng.uniform(0.6, 1.0) for _ in range(5)]
-b = lp(np.concatenate(parts), 4500)
-write('breathing_dying', [b, b])
+# Single breath halves for the game's breath_in / breath_out slots (it times them itself).
+def half(dur, inhale, rasp):
+    n = int(dur * SR); w = rng.standard_normal(n)
+    if inhale:
+        env = np.sin(np.linspace(0, np.pi / 2, n)) ** 1.5; env[-int(0.06*SR):] *= np.linspace(1, 0, int(0.06*SR))
+        return (bp(w, 900, 3200) * 0.8 + bp(w, 2600, 5200) * 0.4) * env
+    env = np.exp(-np.linspace(0, 3.2, n)) * np.minimum(1, np.linspace(0, 12, n))
+    t = np.arange(n) / SR; f0 = 85 + 8 * np.sin(t * 7)
+    saw = ((np.cumsum(f0) / SR) % 1) * 2 - 1
+    voice = bp(saw * (0.6 + 0.4 * rng.standard_normal(n) ** 2), 150, 1100) * rasp
+    return (bp(w, 350, 1600) + voice) * env
+for k in range(4):
+    suf = '' if k == 0 else f'_{k + 1}'
+    a = lp(half(rng.uniform(0.55, 0.75), True, 0), 6000); write('breath_in' + suf, [a], peak=0.3)
+    b = lp(half(rng.uniform(0.65, 0.9), False, rng.uniform(0.3, 0.7)), 6000); write('breath_out' + suf, [b], peak=0.4)

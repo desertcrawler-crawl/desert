@@ -8,7 +8,7 @@ const MAP = {
   crawl: 'Crawl_Fwd_Loop', crawl_idle: 'Crawl_Idle_Loop',
   walk: 'Walk_Loop', walk_idle: 'Idle_Tired_Loop',
   stand_up: 'Crawl_Exit', lie_down: 'Crawl_Enter',
-  dying_breathe: 'GroundSit_Idle_Loop', slapped: 'Hit_Head',
+  dying_breathe: 'GroundSit_Idle_Loop', slap: 'Punch_Jab', slapped: 'Hit_Head',
   death: 'Death01', drink: 'Drink',
 };
 const want = new Map(Object.entries(MAP).map(([k, v]) => [v, k]));

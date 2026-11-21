@@ -9,6 +9,8 @@ import { terrainHeight } from "@desert/sim";
 export class FollowCamera {
   readonly camera: THREE.PerspectiveCamera;
   private yawOffset = 0;
+  /** The camera's current facing: 0 = north, growing clockwise. */
+  yaw = 0;
   private pitch = 0.32;
   private distance = 5;
   private dragging = false;
@@ -48,6 +50,7 @@ export class FollowCamera {
   update(dt: number, target: THREE.Vector3, heading: number): void {
     if (!this.dragging) this.yawOffset *= Math.exp(-dt * 1.5); // drift back behind the character
     const yaw = heading + this.yawOffset;
+    this.yaw = yaw;
     const back = new THREE.Vector3(-Math.sin(yaw), 0, Math.cos(yaw)); // opposite of facing
     const horiz = Math.cos(this.pitch) * this.distance;
     const desired = new THREE.Vector3(

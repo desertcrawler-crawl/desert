@@ -24,8 +24,28 @@ export interface ArtSlot {
 export const ART_SLOTS = {
   crawler: {
     file: "crawler.glb",
-    clips: ["crawl", "crawl_idle", "walk", "walk_idle", "stand_up", "lie_down", "dying_breathe", "slapped", "death", "drink"],
+    clips: ["crawl", "crawl_idle", "walk", "walk_idle", "stand_up", "lie_down", "dying_breathe", "slap", "slapped", "death", "drink"],
     note: "The stranded old man: long white hair and beard, rags, very thin, hunched. About 1.8 m tall standing.",
+  },
+  well: {
+    file: "well.glb",
+    clips: [],
+    note: "An active water well, about 1.6 m across. Name the water surface mesh 'water': it turns dry the moment someone drinks, then the well fades away.",
+  },
+  skeleton: {
+    file: "skeleton.glb",
+    clips: ["slapped"],
+    note: "Skeleton lying on its back where a player died, about 1.7 m long. Name the skull mesh 'skull' so slaps can bounce it later.",
+  },
+  cross: {
+    file: "cross.glb",
+    clips: [],
+    note: "Wooden grave cross, about 1.1 m tall. The player's name is drawn above it by the game.",
+  },
+  scorpion: {
+    file: "scorpion.glb",
+    clips: ["idle", "sting"],
+    note: "Boundary guardian, about 0.8 m long, clearly visible from a distance. Disappears after stinging and returns 10 s later.",
   },
   rock: {
     file: "rock.glb",
@@ -35,47 +55,27 @@ export const ART_SLOTS = {
   dead_tree: {
     file: "dead_tree.glb",
     clips: [],
-    note: "Bare, sun-bleached dead tree, about 4.5 m tall.",
+    note: "Bare, sun-bleached dead tree, about 4.5 m tall. Not placed in the map yet.",
   },
   shrub: {
     file: "shrub.glb",
     clips: [],
-    note: "Dry desert shrub, about 1.5 m across and 0.9 m tall.",
+    note: "Dry desert shrub, about 1.5 m across and 0.9 m tall. Not placed in the map yet.",
   },
   cactus: {
     file: "cactus.glb",
     clips: [],
-    note: "Tall cactus, about 2.4 m tall.",
+    note: "Tall cactus, about 2.4 m tall. Not placed in the map yet.",
   },
   ruin_column: {
     file: "ruin_column.glb",
     clips: [],
-    note: "Broken stone column on a plinth, about 3 m tall.",
+    note: "Broken stone column on a plinth, about 3 m tall. Not placed in the map yet.",
   },
-  ruin_wall: {
+  wall: {
     file: "ruin_wall.glb",
     clips: [],
-    note: "Crumbling stone wall section, about 2.6 m long and 2.6 m high.",
-  },
-  well: {
-    file: "well.glb",
-    clips: [],
-    note: "Stone well with posts, crossbeam, rope and bucket. About 2 m across and 2.2 m tall.",
-  },
-  skeleton: {
-    file: "skeleton.glb",
-    clips: [],
-    note: "Human skeleton lying on its back, head towards +Z, about 1.7 m long.",
-  },
-  cross: {
-    file: "cross.glb",
-    clips: [],
-    note: "Wooden grave cross stuck in the sand, about 1.3 m tall.",
-  },
-  scorpion: {
-    file: "scorpion.glb",
-    clips: ["idle", "walk", "attack"],
-    note: "Desert scorpion, about 1.4 m long including the tail (game-sized, bigger than life).",
+    note: "Ruin wall block, 1 m long (along X), 1 m thick and 1 m tall. Stretched per wall in the map, so keep it a simple block shape with worn edges.",
   },
 } as const satisfies Record<string, ArtSlot>;
 
