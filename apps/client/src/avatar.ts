@@ -123,6 +123,7 @@ export function makeLabel(text: string): THREE.Sprite {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.lineWidth = 6;
+  ctx.lineJoin = "round";
   ctx.strokeStyle = "rgba(60,40,20,0.8)";
   ctx.strokeText(text, 128, 32);
   ctx.fillStyle = "#fff7e8";

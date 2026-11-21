@@ -37,7 +37,7 @@ Most slots above currently hold a free placeholder model (CC0, so commercial use
 - **Scale:** 1 Blender unit = 1 metre.
 - **Facing:** the model looks towards Blender's **-Y**, that is, towards you in Front view (numpad 1). This is the glTF standard, and the game turns the model to face where the character is heading.
 - **Origin:** on the ground, in the centre of the footprint.
-- **Style:** low-poly and flat-shaded reads best with the game's lighting, but any style works.
+- **Style:** low-poly and flat-shaded reads best with the game's lighting, but any style works. See [ART_BRIEF.md](ART_BRIEF.md) for priorities, budgets and the palette.
 - **Export settings:** "Apply modifiers" on; include animations; +Y up (the Blender default for glTF).
 
 ## Sounds

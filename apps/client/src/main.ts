@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { terrainHeight, type MoveInput } from "@desert/sim";
+import { terrainHeight, WORLD, type MoveInput } from "@desert/sim";
 import { loadArt } from "./art/loader.ts";
 import { BodySounds, DesertAudio } from "./audio/audio.ts";
 import { Avatar } from "./avatar.ts";
@@ -18,7 +18,9 @@ import {
   Sparkle,
   type PropTemplates,
 } from "./props.ts";
-import { buildWorld, SUN_DIRECTION } from "./world.ts";
+import { buildWorld, SUN_DIRECTION, WIND } from "./world.ts";
+import { Graphics } from "./look/graphics.ts";
+import { AmbientDust, SandPuffs } from "./look/dust.ts";
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
 const canvas = $<HTMLCanvasElement>("#scene");
@@ -38,6 +40,7 @@ const chatRoot = $<HTMLDivElement>("#chat");
 const soundBox = $<HTMLDivElement>("#sound");
 const muteButton = $<HTMLButtonElement>("#mute");
 const volumeSlider = $<HTMLInputElement>("#volume");
+const qualityButton = $<HTMLButtonElement>("#quality");
 
 const audio = new DesertAudio();
 function showSound() {
@@ -62,21 +65,36 @@ window.addEventListener("keydown", (e) => {
 });
 showSound();
 
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
+const graphics = new Graphics(canvas);
 const scene = new THREE.Scene();
 const follow = new FollowCamera(canvas);
 const { sun } = await buildWorld(scene);
+graphics.attach(scene, follow.camera, sun);
+const dust = new AmbientDust(WIND);
+const puffs = new SandPuffs();
+scene.add(dust.object, puffs.object);
+const render = () => graphics.render(scene, follow.camera, performance.now() / 1000);
 
 function resize() {
-  renderer.setSize(window.innerWidth, window.innerHeight, false);
+  graphics.resize(window.innerWidth, window.innerHeight);
   follow.resize(window.innerWidth, window.innerHeight);
+  const h = graphics.renderer.getDrawingBufferSize(new THREE.Vector2()).y;
+  dust.setPixelScale(h, follow.camera.fov);
+  puffs.setPixelScale(h, follow.camera.fov);
 }
 window.addEventListener("resize", resize);
 resize();
+
+function showQuality() {
+  qualityButton.textContent = graphics.quality === "high" ? "Graphics: High" : "Graphics: Low";
+}
+qualityButton.addEventListener("click", () => {
+  graphics.setQuality(graphics.quality === "high" ? "low" : "high");
+  resize();
+  showQuality();
+  qualityButton.blur();
+});
+showQuality();
 
 try {
   nameInput.value = localStorage.getItem("desert:name") ?? "";
@@ -115,6 +133,9 @@ interface Shown {
   sounds: BodySounds;
   pos: THREE.Vector3;
   heading: number;
+  speed: number;
+  /** Seconds until the next sand puff while moving. */
+  puff: number;
 }
 
 function start(
@@ -180,12 +201,12 @@ function start(
   const clock = new THREE.Clock();
   const tmp = new THREE.Vector3();
 
-  renderer.setAnimationLoop(() => {
+  graphics.renderer.setAnimationLoop(() => {
     const dt = Math.min(clock.getDelta(), 0.1);
     const st = room.state;
     // Collections arrive with the first full state; skip frames until then.
     if (!st.players || !st.wells || !st.markers || !st.scorpions) {
-      renderer.render(scene, follow.camera);
+      render();
       return;
     }
 
@@ -193,7 +214,7 @@ function start(
     st.players.forEach((p, id) => {
       let s = shown.get(id);
       if (!s) {
-        s = { avatar: new Avatar(p.name, crawlerArt), sounds: new BodySounds(), pos: new THREE.Vector3(p.x, terrainHeight(p.x, p.z), p.z), heading: p.heading };
+        s = { avatar: new Avatar(p.name, crawlerArt), sounds: new BodySounds(), pos: new THREE.Vector3(p.x, terrainHeight(p.x, p.z), p.z), heading: p.heading, speed: 0, puff: 0 };
         scene.add(s.avatar.object);
         shown.set(id, s);
       }
@@ -202,6 +223,18 @@ function start(
       s.pos.lerp(tmp, 1 - Math.exp(-dt * 10));
       s.heading = lerpAngle(s.heading, p.heading, 1 - Math.exp(-dt * 10));
       const speed = before.distanceTo(s.pos) / Math.max(dt, 1e-3);
+      s.speed = speed;
+      // Sand puffs from hands and knees (or feet), only near the camera.
+      s.puff -= dt;
+      if (p.phase === "alive" && speed > 0.15 && s.puff <= 0 && s.pos.distanceToSquared(follow.camera.position) < 40 * 40) {
+        const upright = p.posture === "walk";
+        s.puff = upright ? 0.38 : 0.28;
+        const side = Math.random() < 0.5 ? -0.18 : 0.18;
+        const fx = Math.sin(s.heading), fz = -Math.cos(s.heading);
+        const ahead = upright ? 0.1 : 0.35;
+        const px = s.pos.x + fx * ahead + fz * side, pz = s.pos.z + fz * ahead - fx * side;
+        puffs.spawn(px, terrainHeight(px, pz), pz, upright ? 0.7 : 1);
+      }
       s.avatar.object.position.copy(s.pos);
       // Models face +Z (glTF standard). Heading 0 = north = -Z, growing clockwise from above.
       s.avatar.object.rotation.y = Math.PI - s.heading;
@@ -280,14 +313,17 @@ function start(
 
     const mineShown = shown.get(room.sessionId);
     if (mineShown && mine) {
-      follow.update(dt, mineShown.pos, mineShown.heading);
+      follow.update(dt, mineShown.pos, mineShown.heading, mineShown.speed, mine.posture === "walk");
       audio.setListener({ x: mineShown.pos.x, z: mineShown.pos.z, yaw: follow.yaw });
       // Keep the character-shadow area centred on the player; the sun direction itself never changes.
       sun.target.position.copy(mineShown.pos);
       sun.position.copy(mineShown.pos).addScaledVector(SUN_DIRECTION, 80);
     }
     audio.update();
-    renderer.render(scene, follow.camera);
+    const cam = follow.camera.position;
+    dust.update(dt, cam, terrainHeight(cam.x, cam.z));
+    puffs.update(dt);
+    render();
   });
 }
 
@@ -298,10 +334,20 @@ function lerpAngle(a: number, b: number, t: number): number {
   return a + d * t;
 }
 
-// Before joining, show the desert slowly from above.
-renderer.setAnimationLoop(() => {
-  const t = performance.now() / 1000;
-  follow.camera.position.set(Math.sin(t * 0.05) * 40, 14, Math.cos(t * 0.05) * 40);
-  follow.camera.lookAt(0, 0, 0);
-  renderer.render(scene, follow.camera);
-});
+// Before joining, a slow, low drift past Split Spire towards the sun.
+{
+  const spire = WORLD.landmarks.find((l) => l.name === "Split Spire") ?? { x: 0, z: 0 };
+  const titleClock = new THREE.Clock();
+  graphics.renderer.setAnimationLoop(() => {
+    const dt = Math.min(titleClock.getDelta(), 0.1);
+    const t = performance.now() / 1000;
+    const a = -0.1 + t * 0.02; // side-lit by the low sun
+    const x = spire.x + Math.sin(a) * 34;
+    const z = spire.z + Math.cos(a) * 34;
+    follow.camera.position.set(x, terrainHeight(x, z) + 3.2 + Math.sin(t * 0.2) * 0.4, z);
+    follow.camera.lookAt(spire.x, terrainHeight(spire.x, spire.z) + 6, spire.z);
+    const cam = follow.camera.position;
+    dust.update(dt, cam, terrainHeight(cam.x, cam.z));
+    render();
+  });
+}

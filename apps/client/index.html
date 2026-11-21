@@ -9,8 +9,10 @@
   <body>
     <canvas id="scene"></canvas>
 
+    <div id="title-shade"></div>
     <form id="join" class="panel" autocomplete="off">
-      <h1>Desert Survival</h1>
+      <p class="kicker">An online survival game</p>
+      <h1 class="logo">Desert<span>Survival</span></h1>
       <p class="sub">You wake up in the desert. Find water.</p>
       <input id="name" maxlength="20" placeholder="Your name" required />
       <button type="submit">Play</button>
@@ -27,10 +29,12 @@
     <div id="sound" hidden>
       <button id="mute" type="button" title="Mute (M)">Sound on</button>
       <input id="volume" type="range" min="0" max="1" step="0.05" aria-label="Volume" />
+      <button id="quality" type="button" title="Lower this if the game feels slow">Graphics: High</button>
     </div>
 
     <div id="health" hidden>
-      <div class="bar"><div class="fill"></div></div>
+      <svg class="drop" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5c-3.2 4.6-7 9-7 12.6A7 7 0 0 0 19 15.1C19 11.5 15.2 7.1 12 2.5z" /></svg>
+      <div class="bar"><div class="fill"></div><div class="ticks"></div></div>
       <div class="label"></div>
     </div>
 
