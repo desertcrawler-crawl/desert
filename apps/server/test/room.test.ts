@@ -51,10 +51,11 @@ describe("desert room", () => {
     a.send("input", { forward: 1, turn: 0 });
     await waitFor(() => z0 - me().z > 0.2);
     // A forged "position" message is rejected: the server has no handler for it and drops that client.
+    const x0 = me().x;
     a.send("position", { x: 999, z: 999 });
     a.send("input", { forward: 0, turn: 0 });
     await new Promise((r) => setTimeout(r, 200));
-    expect(Math.abs(me().x)).toBeLessThan(100);
+    expect(Math.abs(me().x - x0)).toBeLessThan(1);
     await a.leave();
   });
 
